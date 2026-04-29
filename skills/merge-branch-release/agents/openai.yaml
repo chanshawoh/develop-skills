@@ -1,0 +1,6 @@
+interface:
+  display_name: "Merge Branch Release"
+  short_description: "Merge and push release branches safely"
+  default_prompt: "Use $merge-branch-release to merge my current branch into the target release branch and push it."
+policy:
+  allow_implicit_invocation: true
