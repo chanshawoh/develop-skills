@@ -7,10 +7,12 @@ description: Use when the user wants to merge the current branch into another br
 
 ## Core Rule
 
-Preserve the user's working branch. Commit current-branch work first, merge that
-branch into the target branch, push the target branch, then switch back to the
-original branch. For any workflow that switches branches or uses another
-worktree to merge, returning to the original branch is mandatory by default.
+Preserve the user's working branch. Before any branch switch or target merge,
+commit the current branch's relevant work and push the source branch
+successfully. Then merge that branch into the target branch, push the target
+branch, and switch back to the original branch. For any workflow that switches
+branches or uses another worktree to merge, returning to the original branch is
+mandatory by default.
 
 Only skip returning to the original branch when the user explicitly says not to
 switch back, or explicitly asks to delete the original branch after the merge.
@@ -32,7 +34,7 @@ When the target branch is checked out in another worktree:
 - Do not force checkout that branch in the current worktree.
 - If the branch cannot be checked out because Git reports it is already checked out elsewhere, use the path from `git worktree list --porcelain`.
 - Before running target steps there, run `git -C <target_worktree_path> status --short`; stop if that worktree has unrelated uncommitted changes.
-- Commit source changes first, then run the target-branch update, merge, push, and verification commands from that target worktree path.
+- Commit and push source changes first, then run the target-branch update, merge, push, and verification commands from that target worktree path.
 - Switch the user's current shell back to the original `repo_root` after verification.
 
 ## Workflow
@@ -61,10 +63,12 @@ When the target branch is checked out in another worktree:
    - If the current checkout is a worktree and the user asks to merge to another branch that is checked out in a different worktree, merge into that requested branch.
    - Do not infer the target from worktree paths alone when the user named a branch; the named branch wins.
 
-4. Commit current branch code before switching.
+4. Commit and push current branch code before switching.
    - Review staged and unstaged changes.
    - Stage only relevant files for the requested work.
    - Do not commit secrets or unrelated user changes without explicit confirmation.
+   - Create the source-branch commit before any target checkout or merge.
+   - If there are no relevant source changes to commit, record that no source commit was needed and still verify the source branch is pushed/up to date before switching.
    - Commit with a concise message via heredoc:
 
 ```bash
@@ -74,6 +78,12 @@ feat(scope): concise intent
 EOF
 )"
 ```
+
+   - Push the source branch immediately after the commit succeeds.
+   - If source has upstream: `git push`
+   - If source has no upstream: `git push -u origin <source_branch>`
+   - If the source push fails or is rejected, stop and report; do not switch branches or merge into the target.
+   - Do not pull, rebase, force push, or otherwise rewrite source history to make the push work unless the user explicitly requests it.
 
 5. Check whether the target branch exists.
    - Fetch branch refs first when network is needed: `git fetch origin`
@@ -107,7 +117,8 @@ EOF
 
 - Never use `git reset --hard`, `git checkout --`, force push, or rebase unless the user explicitly requests it.
 - Never skip hooks with `--no-verify`.
-- Do not push the source branch unless the user asks; only push the target branch for this workflow.
+- Always push the source branch successfully before merging it into the target branch.
+- Do not push unrelated source-branch commits or unrelated files; only include changes that belong to the requested release work.
 - Do not remove, prune, or modify worktrees unless the user explicitly requests it.
 - Do not leave the user on the target branch after a merge unless the user explicitly requested not to switch back or requested deleting the original branch.
 - If uncommitted unrelated changes are present, ask before including them.
@@ -118,8 +129,9 @@ EOF
 Report:
 
 - commit hash created on the source branch, if any
+- source branch push result
 - target branch updated
 - whether a separate worktree path was used for the target branch
-- push result
+- target branch push result
 - final branch/worktree after switching back, or the explicit user exception that skipped switching back
 - any residual ahead/behind status or conflicts
