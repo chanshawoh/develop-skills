@@ -1,6 +1,6 @@
 ---
 name: merge-branch-release
-description: Use when the user wants to merge the current branch into another branch, publish code, push to a target branch, release to test/pre-release/prod, or says to merge and push.
+description: Use when the user wants to merge the current branch into another branch, repeat a previous merge after new local changes, publish code, push to a target branch, release to test/pre-release/prod, or says to merge and push.
 ---
 
 # Merge Branch Release
@@ -17,6 +17,53 @@ mandatory by default.
 Only skip returning to the original branch when the user explicitly says not to
 switch back, or explicitly asks to delete the original branch after the merge.
 Do not infer either exception from release wording alone.
+
+Treat every user merge request as a fresh command, even when the same source
+branch was already merged into the same target branch earlier in the
+conversation. Do not skip the workflow because "this was already merged" unless
+the current Git state proves there are no new commits, no relevant staged or
+unstaged changes, and the source commit is already reachable from the target.
+If the user merged once, the agent switched back to the source branch, the user
+edited code, and then the user asks to merge again, the second request is a new
+release attempt. Re-run status, diff, commit, push, target update, merge, push,
+verification, and switch-back steps from the current state.
+
+Never rely on conversational memory alone to decide that a merge is duplicate
+or complete. Git state is the source of truth.
+
+## Repeat Merge Rule
+
+Repeated merge requests are common and expected. The user may:
+
+1. Ask to merge the current branch into a target branch.
+2. Wait for the agent to commit, push, merge, push the target, and switch back.
+3. Make more edits on the original branch.
+4. Ask to merge again using the same words as before.
+
+In that case, do not answer that the merge has already been done. Start again
+from the current checkout:
+
+- Re-capture `source_branch`, `repo_root`, worktree state, status, diffs, and
+  recent log.
+- Detect and commit new relevant source changes before switching branches.
+- Push the source branch again after any new commit.
+- Re-enter or use the target branch/worktree and update it from its upstream.
+- Merge the latest source branch tip into the target branch.
+- Push the target branch again.
+- Verify and return to the original branch/worktree again.
+
+A repeated request may be skipped only after an explicit fresh check shows all
+of these are true:
+
+- `git status --short` has no relevant staged or unstaged source changes.
+- The source branch has no unpushed commits that should be released.
+- The target branch already contains the current source branch tip, for example
+  `git merge-base --is-ancestor <source_branch> <target>` succeeds after
+  fetching/updating the target.
+- The target branch is pushed and up to date with its upstream.
+
+Even when all of those are true, report the fresh verification evidence instead
+of relying on an earlier run.
 
 ## Worktree Target Resolution
 
@@ -47,6 +94,9 @@ When the target branch is checked out in another worktree:
    - `git status --short`
    - `git diff --staged; git diff`
    - `git log --oneline -10`
+   - Do this on every merge request, including repeated requests for the same
+     source and target branches. Do not reuse status, diff, log, or branch
+     conclusions from a previous merge attempt.
 
 2. Determine whether the current checkout is part of a Git worktree setup.
    - Parse `git worktree list --porcelain`.
@@ -68,6 +118,9 @@ When the target branch is checked out in another worktree:
    - Stage only relevant files for the requested work.
    - Do not commit secrets or unrelated user changes without explicit confirmation.
    - Create the source-branch commit before any target checkout or merge.
+   - For a repeated merge request, check for new source changes again. If new
+     relevant changes exist, commit them even if an earlier merge in the same
+     conversation already completed successfully.
    - If there are no relevant source changes to commit, record that no source commit was needed and still verify the source branch is pushed/up to date before switching.
    - Commit with a concise message via heredoc:
 
@@ -100,6 +153,10 @@ EOF
 7. Merge source into target.
    - If target was newly created from source, no merge is needed.
    - Otherwise run: `git merge --no-ff <source_branch>`
+   - For a repeated merge request, run the merge decision from the current
+     target state. It is acceptable for Git to report "Already up to date" only
+     after the source branch has been freshly checked, pushed or verified, and
+     the target branch has been freshly updated.
    - If conflicts occur, stop after reporting conflicted files unless the fix is obvious and requested.
 
 8. Push target.
