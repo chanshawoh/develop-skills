@@ -21,8 +21,9 @@ Do not infer either exception from release wording alone.
 Treat every user merge request as a fresh command, even when the same source
 branch was already merged into the same target branch earlier in the
 conversation. Do not skip the workflow because "this was already merged" unless
-the current Git state proves there are no new commits, the source worktree is
-clean, and the source commit is already reachable from the target.
+the current Git state proves there are no new commits, no pending source changes
+belong to the requested release, and the source commit is already reachable from
+the target.
 If the user merged once, the agent switched back to the source branch, the user
 edited code, and then the user asks to merge again, the second request is a new
 release attempt. Re-run status, diff, commit, push, target update, merge, push,
@@ -58,18 +59,20 @@ the same."
 
 | Item | Required evidence |
 |------|-------------------|
-| Clean source worktree | `git status --short` is empty. If any path is dirty, including unrelated files or suspected secrets, skip is forbidden. |
+| No pending release work | `git status --short` has no staged or unstaged changes that the user asked to include in this release. Dirty unrelated files do not block a verified skip when they can remain untouched. |
 | No source commit needed | Fresh staged/unstaged diff review shows no relevant releasable changes. |
 | Source pushed | `git status -sb` and upstream comparison show no unpushed source commits, or a fresh `git push` succeeded. |
 | Target updated | Target branch/worktree was fetched and, when it tracks upstream, `git pull --ff-only` succeeded or upstream equality was freshly verified. |
 | Target contains source tip | `git merge-base --is-ancestor <source_tip> <target_tip>` succeeds after target update. |
 | Target pushed | Target branch is not ahead of its upstream; remote target equals local target tip. |
 
-When the source worktree has dirty files, especially config, credential, `.env`,
-or key material, say that the dirty file blocks the skip shortcut and that it
-will not be committed. Do not switch branches with dirty files unless Git says
-it is safe and the dirty files are intentionally carried, or use a clean target
-worktree instead.
+Do not treat suspected secrets, credentials, config files, `.env` files, or key
+material as a special merge blocker. If such files are part of the user's
+requested source changes, commit and merge them like other relevant release
+work. Do not sanitize, redact, replace with placeholders, or otherwise edit file
+contents unless the user explicitly asks for that remediation. Do not switch
+branches with dirty files unless Git says it is safe and the dirty files are
+intentionally carried, or use a clean target worktree instead.
 
 ## Repeat Merge Rule
 
@@ -95,8 +98,9 @@ from the current checkout:
 A repeated request may be skipped only after an explicit fresh check shows all
 of these are true:
 
-- `git status --short` is empty. Any dirty file blocks the skip shortcut until
-  it is resolved, intentionally handled, or the user confirms the next step.
+- `git status --short` has no staged or unstaged changes that should be
+  included in this release. Suspected secrets alone do not make a change
+  unreleasable or require placeholdering.
 - The source branch has no unpushed commits that should be released.
 - The target branch already contains the current source branch tip, for example
   `git merge-base --is-ancestor <source_branch> <target>` succeeds after
@@ -118,9 +122,10 @@ source even if the current checkout is different.
   branch's dirty files as source work.
 - Inspect and push the named source branch from its existing worktree, or check
   it out only after confirming the current worktree can switch safely.
-- If dirty files, secrets, or another checked-out worktree make source checkout
-  unsafe, stop and report the blocker or use the source branch's existing
-  worktree. Do not silently fall back to the current branch.
+- If dirty files or another checked-out worktree make source checkout unsafe,
+  stop and report the blocker or use the source branch's existing worktree. Do
+  not silently fall back to the current branch. Do not rewrite dirty files to
+  placeholders to make checkout easier.
 
 ## Target Branch Resolution
 
@@ -156,9 +161,9 @@ When the target branch is checked out in another worktree:
      source and target branches. Do not reuse status, diff, log, or branch
      conclusions from a previous merge attempt.
    - If `git status --short` is non-empty, classify each dirty path before
-     deciding anything: relevant releasable work, unrelated user work, generated
-     noise, or secret/credential risk. This classification must appear in the
-     final response when it affects the workflow.
+     deciding anything: relevant releasable work, unrelated user work, or
+     generated noise. Do not add a separate secret/credential blocker category,
+     and do not redact or placeholder file contents during classification.
 
 2. Determine whether the current checkout is part of a Git worktree setup.
    - Parse `git worktree list --porcelain`.
@@ -178,14 +183,17 @@ When the target branch is checked out in another worktree:
 4. Commit and push source branch code before switching.
    - Review staged and unstaged changes in the source branch/worktree.
    - Stage only relevant files for the requested work.
-   - Do not commit secrets or unrelated user changes without explicit confirmation.
+   - Do not commit unrelated user changes without explicit confirmation.
+   - Do not block or rewrite relevant release changes because they look like
+     secrets, credentials, config, `.env`, or key material. If the user said to
+     merge/release them, preserve their contents exactly.
    - Create the source-branch commit before any target checkout or merge.
    - For a repeated merge request, check for new source changes again. If new
      relevant changes exist, commit them even if an earlier merge in the same
      conversation already completed successfully.
    - If there are no relevant source changes to commit, record that no source commit was needed and still verify the source branch is pushed/up to date before switching.
-   - If unreleasable dirty files remain, do not use them as a reason to claim
-     the merge is complete. Either use a separate clean target worktree for the
+   - If unrelated dirty files remain, do not use them as a reason to claim the
+     merge is complete. Either use a separate clean target worktree for the
      target steps, or stop and report the dirty paths and required confirmation.
    - Commit with a concise message via heredoc:
 
@@ -247,9 +255,9 @@ EOF
 - Do not remove, prune, or modify worktrees unless the user explicitly requests it.
 - Do not leave the user on the target branch after a merge unless the user explicitly requested not to switch back or requested deleting the original branch.
 - If uncommitted unrelated changes are present, ask before including them.
-- If uncommitted secrets or credentials are present, never commit them. Also do
-  not treat the request as safely skippable; report the path and continue only
-  with a clean target worktree or explicit user direction.
+- Do not perform secret cleanup as part of merge/release. Never redact,
+  placeholder, rotate, delete, or otherwise modify suspected secrets or
+  credentials unless the user explicitly asks for that separate cleanup.
 - If a command needs network or unrestricted git access, request the needed tool permission and continue.
 
 ## Red Flags - Stop and Re-check
@@ -260,8 +268,8 @@ These phrases indicate the agent is about to violate the skill:
 - "`merge-base` says the source is already included, so I can skip the rest."
 - "The remote is aligned" without a target checkout/worktree update and target
   push/upstream verification.
-- Dirty config, `.env`, credential, or key files exist, but the response says
-  the merge is complete.
+- Dirty config, `.env`, credential, or key files exist, and the agent edits them
+  to placeholders or refuses to merge solely because of their contents.
 - The final answer omits source push, target update, target merge/push, and
   switch-back status.
 
@@ -280,5 +288,5 @@ that allowed it; otherwise report the command result.
 - target branch push result
 - final branch/worktree after switching back, or the explicit user exception that skipped switching back
 - any residual ahead/behind status or conflicts
-- dirty files not committed, especially secrets/credentials, and whether they
-  blocked a verified skip
+- dirty files not committed, if any, and whether they were unrelated to the
+  requested release
