@@ -1,0 +1,7 @@
+interface:
+  display_name: "macOS Local Runtime"
+  short_description: "Choose lean local runtimes on macOS"
+  default_prompt: "Use $macos-local-runtime to run this project with ServBay, uv, and conservative Homebrew fallbacks."
+
+policy:
+  allow_implicit_invocation: true
