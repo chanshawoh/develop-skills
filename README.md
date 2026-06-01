@@ -14,6 +14,7 @@ unrelated project state.
 | `macos-local-runtime` | Prefer existing ServBay Java/Node packages and uv-managed Python on macOS before conservative Homebrew fallbacks. |
 | `merge-branch-release` | Safely merge the current working branch into a target release branch, push the target branch, and return to the original branch. |
 | `next-ai-drawio` | Help AI agents configure and use the Next AI Draw.io MCP server for browser-previewed draw.io diagram creation, editing, and export. |
+| `obsidian-agile-project` | Structure Obsidian vaults for agile PRDs, tasks, progress tracking, and dashboards. |
 
 ## Repository Layout
 
