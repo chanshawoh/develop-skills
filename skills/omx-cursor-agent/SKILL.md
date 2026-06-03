@@ -135,10 +135,12 @@ Write verdict PASS/FAIL/PARTIAL, concrete issues with file:line when possible, m
 Use Cursor headless for implementation:
 
 ```bash
-cursor-agent -p --trust --force --sandbox disabled --approve-mcps --workspace /path/to/repo < /tmp/<project-name>/<task-id>/cursor.prompt.md
+cursor-agent -p --model auto --trust --force --sandbox disabled --approve-mcps --workspace /path/to/repo < /tmp/<project-name>/<task-id>/cursor.prompt.md
 ```
 
 If the binary is installed as `agent`, use `agent` instead of `cursor-agent`.
+
+Allow the user to specify Cursor's `--model`. If no model is specified, use `auto`. If the user asks for Cursor's available models, run `cursor-agent --list-models` or `agent models` and answer from the command output. If the user asks for `gpt` or `claude` without an exact version or size, choose the newest matching common model from `references/cursor-headless.md`; normalize informal size words such as "high", "高的", "medium", "中等", and "中号". For "最大", "最高", or "最强" wording, choose the largest size available among the matching candidate models, not always `high`. Default to `medium` size when available and use a larger size only when requested or when no matching `medium` model exists.
 
 Use `--continue` for the same repo/task when no explicit chat id was captured. Use `--resume <chatId>` when a chat id was captured. Read `references/cursor-headless.md` before changing this behavior.
 
