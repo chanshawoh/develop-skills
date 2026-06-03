@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Hermes avatar">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#25425a"/>
+      <stop offset="58%" stop-color="#162330"/>
+      <stop offset="100%" stop-color="#0b1018"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff0b2"/>
+      <stop offset="44%" stop-color="#d6a84b"/>
+      <stop offset="100%" stop-color="#8c6226"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9ff4eb"/>
+      <stop offset="100%" stop-color="#38a9b2"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="456" fill="none" stroke="#d6a84b" stroke-width="14" opacity="0.7"/>
+  <circle cx="512" cy="512" r="414" fill="none" stroke="#74e0d7" stroke-width="2" opacity="0.22"/>
+
+  <g opacity="0.55" stroke="#74e0d7" stroke-width="8" stroke-linecap="round" fill="none">
+    <path d="M210 544C300 498 359 494 444 536"/>
+    <path d="M813 544C724 498 664 494 580 536"/>
+    <path d="M512 722V830"/>
+    <path d="M317 727C392 746 445 786 512 830C579 786 632 746 707 727"/>
+  </g>
+  <g fill="#74e0d7" filter="url(#glow)">
+    <circle cx="210" cy="544" r="18"/>
+    <circle cx="813" cy="544" r="18"/>
+    <circle cx="317" cy="727" r="14"/>
+    <circle cx="707" cy="727" r="14"/>
+    <circle cx="512" cy="830" r="16"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M357 500C365 377 424 300 512 300C600 300 659 377 667 500C672 580 642 646 590 684C557 708 525 718 512 718C499 718 467 708 434 684C382 646 352 580 357 500Z" fill="#111b25" stroke="url(#gold)" stroke-width="16"/>
+    <path d="M379 500C390 402 439 337 512 337C585 337 634 402 645 500C652 565 627 616 585 648C556 670 524 679 512 679C500 679 468 670 439 648C397 616 372 565 379 500Z" fill="#203445"/>
+    <path d="M413 498C444 479 477 469 512 469C547 469 580 479 611 498" fill="none" stroke="#d6a84b" stroke-width="12" stroke-linecap="round"/>
+    <path d="M454 569C474 588 493 597 512 597C531 597 550 588 570 569" fill="none" stroke="#9ff4eb" stroke-width="10" stroke-linecap="round" opacity="0.9"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M512 216C457 226 418 267 394 326C430 308 469 299 512 299C555 299 594 308 630 326C606 267 567 226 512 216Z" fill="url(#gold)"/>
+    <path d="M512 203V341" stroke="#fff0b2" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="512" cy="203" r="20" fill="#fff0b2"/>
+  </g>
+
+  <g fill="url(#gold)" stroke="#fff0b2" stroke-width="7" stroke-linejoin="round" filter="url(#softShadow)">
+    <path d="M376 335C310 272 229 250 142 267C198 288 246 318 286 357C226 354 172 371 124 408C207 414 277 439 334 482C338 423 352 378 376 335Z"/>
+    <path d="M648 335C714 272 795 250 882 267C826 288 778 318 738 357C798 354 852 371 900 408C817 414 747 439 690 482C686 423 672 378 648 335Z"/>
+  </g>
+
+  <g stroke="url(#teal)" stroke-width="9" stroke-linecap="round" fill="none" opacity="0.9">
+    <path d="M370 747C412 784 456 802 512 802C568 802 612 784 654 747"/>
+    <path d="M430 779L512 861L594 779"/>
+  </g>
+
+</svg>

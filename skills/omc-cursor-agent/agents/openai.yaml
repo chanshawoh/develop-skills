@@ -1,0 +1,7 @@
+interface:
+  display_name: "OMC Cursor Agent"
+  short_description: "Orchestrate OMC Claude Code and Cursor headless"
+  default_prompt: "Use $omc-cursor-agent to run this repo change through OMC Claude Code planning/verification and Cursor CLI headless implementation with resume and full local permissions."
+
+policy:
+  allow_implicit_invocation: true
