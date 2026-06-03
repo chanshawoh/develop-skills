@@ -1,6 +1,6 @@
 ---
 name: omx-omo-agent
-description: Use when orchestrating AI-assisted software development through Codex, OMX, OpenCode, or OMO from a non-interactive AI assistant channel. This is a compact enhanced version of the old Hermes OMX/OMO development orchestration skill: it preserves planning, implementation handoff, report, verification, Obsidian, and fix-loop behavior while adding maximum local permissions, stdin prompt files, resume/continue session reuse, official-doc/help checks, and sandbox/write-permission recovery.
+description: "Use when orchestrating AI-assisted software development through Codex, OMX, OpenCode, or OMO from a non-interactive AI assistant channel. This is a compact enhanced version of the old Hermes OMX/OMO development orchestration skill: it preserves planning, implementation handoff, report, verification, Obsidian, and fix-loop behavior while adding maximum local permissions, stdin prompt files, resume/continue session reuse, official-doc/help checks, and sandbox/write-permission recovery."
 ---
 
 # OMX OMO Agent
