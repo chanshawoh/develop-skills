@@ -64,9 +64,9 @@ Write a concise failure artifact, for example `/tmp/<task>-opencode-launch-failu
 - exact report/spec/worktree paths,
 - final status: implementation not started.
 
-Update the Obsidian implementation report to `status: blocked` with `Files changed: none`, `Tests run: not run`, concrete blockers, and the failure-artifact path.
+Have the assistant record the launch blocker in the selected implementation report with minimal wording: `status: blocked`, `Files changed: none`, `Tests run: not run`, concrete blockers, and the failure-artifact path. This is orchestration evidence, not downstream-authored implementation documentation.
 
-Update the orchestration task note to blocked only after re-reading it, preserving board/task visibility. Keep any implementation worktree intact for relaunch.
+Have OMX/Codex reconcile the orchestration task note to blocked only after re-reading it, preserving board/task visibility. Keep any implementation worktree intact for relaunch.
 
 ## Pitfalls
 

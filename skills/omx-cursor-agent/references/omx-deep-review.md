@@ -8,7 +8,7 @@ This is not another implementation pass. It is a review/refactor-opportunity pas
 
 ## Default Inputs
 
-- Obsidian task note or approved spec.
+- task note or approved spec from the selected documentation surface.
 - Previous implementation/verification report, if present.
 - Repo path and commit SHA or branch.
 - Existing project orchestration folder, e.g. `<project>/AI编排/Reports/`.
@@ -26,7 +26,7 @@ Use interactive `omx --madmax --high` only when the user explicitly wants to par
 
 ## Report Requirements
 
-Write to Obsidian, not just stdout:
+Write to the selected documentation surface, not just stdout. For local markdown projects, use:
 
 ```text
 <project>/AI编排/Reports/<task-id>-omx-deep-review.md

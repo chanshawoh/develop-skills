@@ -4,7 +4,7 @@ Use this when a task was implemented across Codex/OpenCode/OMX/OMO worktrees and
 
 ## Pattern
 
-1. Resolve the task note/spec first, preferably from the user's Obsidian link or project path.
+1. Resolve the task note/spec first, preferably from the user's selected documentation surface, such as a Notion page, Obsidian link, local project path, or repo doc.
 2. Identify the real repo and branch from the task note, prior reports, or code search.
 3. Inspect every worktree:
 
@@ -34,8 +34,8 @@ done
 6. If worker changes are already present in main, do not merge again; record `main is superset/current state`.
 7. If main has newer improvements over worker changes, keep main unless the user explicitly requested the worker's version.
 8. Do not delete temporary worktrees without explicit confirmation; report them and offer cleanup.
-9. Write durable Obsidian reports under the existing project's orchestration area, e.g. `AI编排/Reports/<task-id>-implementation-check.md` and `AI编排/Reports/<task-id>-omx-verification.md`.
-10. Ask OMX to verify against the task/spec/report/code. Have OMX write its report to the Obsidian report path.
+9. Write durable reports under the existing project's selected documentation area, e.g. `AI编排/Reports/<task-id>-implementation-check.md` and `AI编排/Reports/<task-id>-omx-verification.md` for local markdown projects.
+10. Ask OMX to verify against the task/spec/report/code. Have OMX write its report to the selected verification report path.
 
 ## Verification Commands
 
@@ -70,6 +70,6 @@ OMX verification report should include:
 ## Pitfalls
 
 - Do not equate `static coverage looks OK` with `done` when tests cannot run.
-- Do not use Markdown tables in Telegram-targeted summaries; prefer bullets. Obsidian reports can use bullets for maximum gateway readability too.
+- Do not use Markdown tables in Telegram-targeted summaries; prefer bullets. Project reports can use bullets for maximum gateway readability too.
 - Do not overwrite a main worktree with a worker branch if main contains later review/hardening improvements.
 - If graphify update is required by project rules and fails only on HTML viz size after AST extraction, report that nuance; do not imply code verification failed.

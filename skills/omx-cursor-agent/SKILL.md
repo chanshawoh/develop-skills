@@ -15,6 +15,14 @@ Keep the old role split:
 - **Cursor CLI Agent** owns implementation, refactors, tests, and implementation reports.
 - **The assistant** owns orchestration: launch tools, pass durable artifacts, monitor progress, recover from launch/sandbox issues, and summarize verified results.
 
+Documentation ownership:
+
+- **Project docs are a shared writable surface**: use the user's requested surface first, then existing project habits, then local `.omx/` or `/tmp/<project-name>/<task-id>/` fallback. The surface may be Obsidian, Notion, local markdown, repo docs, or another project system. The assistant, OMX/Codex, and Cursor may write there when their role requires it, but each role should keep to its lane.
+- **Temporary documentation artifacts must be nested**: never write project docs directly under `/tmp` or a bare `/tmp/<task>/`; use at least `/tmp/<project-name>/<task-id>/`.
+- **The assistant owns instruction relay and orchestration state**: capture the user's request, constraints, artifact paths, launch decisions, and status transitions with minimal rewriting. Do not turn the assistant into the main documentation writer unless the user explicitly asks.
+- **OMX/Codex owns implementation-facing and human-facing documents**: write specs, implementation handoffs, verification reports, review verdicts, task/status updates, and final closeout notes after receiving the assistant's instruction.
+- **Cursor owns implementation evidence**: write implementation reports, changed-file summaries, command/test output, deviations, risks, and blockers. Avoid updating specs, verification reports, final closeout notes, or user-requirement text unless the handoff explicitly lists those files as implementation outputs.
+
 Enhancements over the old skill:
 
 - Use Cursor headless mode, not interactive terminal mode.
@@ -44,7 +52,7 @@ Use these references only when relevant:
 - Cursor headless and resume: `references/cursor-headless.md`
 - OMX/Codex sandbox modes: `references/codex-sandbox-modes.md`
 - Long OMX prompts: `references/omx-background-long-prompts.md`
-- Obsidian/project docs: `references/obsidian-omx-workflow.md`, `references/obsidian-concurrent-edit-safety.md`, `references/obsidian-tmp-artifact-handoff.md`
+- Project docs workflow/safety: `references/project-docs-omx-workflow.md`, `references/project-docs-concurrent-edit-safety.md`, `references/project-docs-tmp-artifact-handoff.md`
 - Worktrees and merge safety: `references/dirty-worktree-merge.md`, `references/worktree-consolidation-verification.md`
 - Fix/review loops: `references/final-acceptance-fix-loop-closeout.md`, `references/omx-deep-review.md`
 
@@ -57,8 +65,8 @@ git status --short
 git branch --show-current
 ```
 
-2. Create a durable task id and artifact paths. Prefer an existing Obsidian project path when provided; otherwise use `.omx/` or `/tmp/<task>/`.
-3. Ask OMX/Codex to analyze the user's requirement and write a spec. For repo-local writes use `workspace-write`; for Obsidian/iCloud/outside-repo writes use `danger-full-access`.
+2. Create a durable task id and artifact paths. Prefer the user's requested documentation surface, then existing project habits, then `.omx/` or `/tmp/<project-name>/<task-id>/`.
+3. Ask OMX/Codex to analyze the user's requirement and write the durable spec. For repo-local writes use `workspace-write`; for external docs, cloud-synced folders, Notion/Obsidian exports, or outside-repo writes use `danger-full-access`.
 4. The spec must include an `Implementation Handoff` for Cursor:
    - repo/workdir
    - edit scope and avoid list
@@ -67,10 +75,10 @@ git branch --show-current
    - report path
    - complete prompt for Cursor CLI Agent
 5. Launch Cursor headless with a prompt file and full local authority.
-6. Require a Cursor implementation report with summary, files changed, commands run, test results, deviations, risks, and blockers.
-7. Ask OMX/Codex to verify Cursor's implementation against the approved spec, report, diff, and tests.
+6. Require Cursor to write only the implementation report with summary, files changed, commands run, test results, deviations, risks, and blockers.
+7. Ask OMX/Codex to write the verification result after checking Cursor's implementation against the approved spec, report, diff, and tests.
 8. If verification finds issues, route only exact narrow fixes back to Cursor and repeat Cursor -> report -> OMX verification.
-9. Close out with task/spec/report updates and a short user summary.
+9. Ask OMX/Codex to close out by updating task/spec/verification docs into a human-readable final state, preserving Cursor's implementation report as downstream evidence, then provide a short user summary.
 
 ## Launcher
 
@@ -80,7 +88,7 @@ Use the bundled launcher for direct Cursor implementation/review tasks:
 skills/omx-cursor-agent/scripts/omx-cursor-agent-run.sh \
   --repo /path/to/repo \
   --task <task-id> \
-  --prompt-file /tmp/<task-id>.cursor.prompt.md
+  --prompt-file /tmp/<project-name>/<task-id>/cursor.prompt.md
 ```
 
 The launcher stores state under `/tmp/omx-cursor-agent-sessions/<task-id>/`. Later assistant turns should reuse the same `task-id` to continue the same Cursor conversation.
@@ -90,7 +98,7 @@ The launcher stores state under `/tmp/omx-cursor-agent-sessions/<task-id>/`. Lat
 For large prompts, never inline the prompt in the shell command:
 
 ```bash
-cat > /tmp/<task-id>.cursor.prompt.md <<'EOF'
+cat > /tmp/<project-name>/<task-id>/cursor.prompt.md <<'EOF'
 <full Cursor worker prompt>
 EOF
 ```
@@ -110,6 +118,7 @@ Use full local permissions. Do not wait for terminal approval prompts.
 Keep changes surgical. Do not touch unrelated files. Do not commit unless asked.
 After editing, run these verification commands: <commands>.
 Write the implementation report with summary, files changed, commands run and results, deviations, risks, and blockers.
+Do not update specs, user-requirement text, verification reports, or closeout notes unless the handoff explicitly lists those files as implementation outputs.
 ```
 
 OMX verification prompt:
@@ -126,7 +135,7 @@ Write verdict PASS/FAIL/PARTIAL, concrete issues with file:line when possible, m
 Use Cursor headless for implementation:
 
 ```bash
-cursor-agent -p --trust --force --sandbox disabled --approve-mcps --workspace /path/to/repo < /tmp/<task>.cursor.prompt.md
+cursor-agent -p --trust --force --sandbox disabled --approve-mcps --workspace /path/to/repo < /tmp/<project-name>/<task-id>/cursor.prompt.md
 ```
 
 If the binary is installed as `agent`, use `agent` instead of `cursor-agent`.
@@ -140,8 +149,8 @@ Use `--approve-mcps` only when the task likely needs Cursor MCP tools or the use
 - Cursor implementation: `-p --trust --force --sandbox disabled --workspace <repo>`.
 - Cursor MCP prompt/approval friction: add `--approve-mcps` if MCP use is intended and safe.
 - Cursor resume: `--resume <chatId>` when known; otherwise `--continue` for the same task.
-- OMX writing inside repo: `omx exec -s workspace-write --skip-git-repo-check -C <repo> < /tmp/<task>.prompt.md`.
-- OMX writing outside repo, Obsidian, or iCloud: `omx exec -s danger-full-access --skip-git-repo-check -C <repo> < /tmp/<task>.prompt.md`.
+- OMX writing inside repo: `omx exec -s workspace-write --skip-git-repo-check -C <repo> < /tmp/<project-name>/<task-id>/omx.prompt.md`.
+- OMX writing outside repo, shared docs, cloud-synced folders, or external doc exports: `omx exec -s danger-full-access --skip-git-repo-check -C <repo> < /tmp/<project-name>/<task-id>/omx.prompt.md`.
 - Long prompt failure: switch to prompt file stdin.
 
 If a TUI, picker, trust prompt, or approval prompt appears, stop that launch shape and switch to headless `-p --trust --force --sandbox disabled` or current documented equivalent.
@@ -184,6 +193,6 @@ Before telling the user work is complete:
 - required tests/checks were run or a clear test gap is stated,
 - `git status --short` and `git diff --stat` were reviewed,
 - no unrelated user changes were overwritten,
-- any requested Obsidian/project docs are updated or the write blocker is reported.
+- any requested project docs have been reconciled by OMX/Codex during closeout or the write blocker is reported.
 
 Final replies should be short: changed files, tests/checks run, outcome, and remaining risks.
