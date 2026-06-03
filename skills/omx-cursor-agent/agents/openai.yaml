@@ -1,0 +1,7 @@
+interface:
+  display_name: "OMX Cursor Agent"
+  short_description: "Orchestrate OMX and Cursor headless"
+  default_prompt: "Use $omx-cursor-agent to run this repo change through OMX/Codex planning and Cursor CLI headless implementation with resume and full local permissions."
+
+policy:
+  allow_implicit_invocation: true
