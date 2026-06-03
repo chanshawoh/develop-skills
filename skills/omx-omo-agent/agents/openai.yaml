@@ -1,0 +1,7 @@
+interface:
+  display_name: "OMX OMO Agent"
+  short_description: "Orchestrate OMX/OMO dev agents"
+  default_prompt: "Use $omx-omo-agent to run this repo change through non-interactive OMX/OMO/Codex/OpenCode orchestration with resume and full local permissions."
+
+policy:
+  allow_implicit_invocation: true
