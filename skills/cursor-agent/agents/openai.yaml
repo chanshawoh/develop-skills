@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cursor CLI Agent"
+  short_description: "Delegate agent work to Cursor CLI"
+  default_prompt: "Use $cursor-agent to have Codex, Claude Code, OpenCode, or another AI tool orchestrate Cursor CLI Agent headless work, unless the user names a different worker."
