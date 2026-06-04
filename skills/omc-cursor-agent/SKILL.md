@@ -1,19 +1,19 @@
 ---
 name: omc-cursor-agent
-description: Use when orchestrating AI-assisted software development through OMC Claude Code as the planning, specification, verification, and closeout brain, with Cursor CLI Agent headless mode as the implementation worker. Mirrors the omx-cursor-agent skill but replaces the OMX/Codex brain with this assistant's own OMC (oh-my-claudecode) Claude Code agents, keeping authoring and verification in separate agent lanes, with non-interactive Cursor headless runs, maximum local permissions, prompt-file stdin, session resume/continue, official Cursor CLI docs/help checks, and permission/sandbox recovery.
+description: Use when orchestrating AI-assisted software development through OMC Claude Code as the planning, specification, verification, and closeout brain, with Cursor CLI Agent headless mode as the implementation worker. Applies from Claude Code with oh-my-claudecode native agents or from other assistants via Claude Code headless handoffs, keeping authoring and verification in separate lanes with prompt-file stdin, resume, docs checks, and permission recovery.
 ---
 
 # OMC Cursor Agent
 
-This skill mirrors `omx-cursor-agent`. It keeps the same orchestration contract but replaces the OMX/Codex planning brain with **OMC Claude Code** (this assistant plus its oh-my-claudecode subagents). Cursor CLI headless mode stays the implementation worker.
+This skill mirrors `omx-cursor-agent`. It keeps the same orchestration contract but replaces the OMX/Codex planning brain with **OMC Claude Code** (oh-my-claudecode running inside Claude Code, or an isolated Claude Code headless process). Cursor CLI headless mode stays the implementation worker.
 
 ## Core Principle
 
 Keep the role split, with OMC Claude Code as the brain:
 
-- **OMC Claude Code** owns requirement analysis, planning, executable specs, verification, review, and closeout. This is this assistant orchestrating its own OMC subagents.
+- **OMC Claude Code** owns requirement analysis, planning, executable specs, verification, review, and closeout. In Claude Code, this means using the oh-my-claudecode plugin's native skills/agents. In other assistants, this usually means launching `claude -p` or handing off durable prompt/spec files to a Claude Code session that has OMC installed.
 - **Cursor CLI Agent** owns implementation, refactors, tests, and implementation reports.
-- **The orchestration layer** (this assistant acting as router) owns: launch tools, pass durable artifacts, monitor progress, recover from launch/permission issues, and summarize verified results.
+- **The orchestration layer** (whatever assistant loaded this skill) owns: launch tools, pass durable artifacts, monitor progress, recover from launch/permission issues, and summarize verified results.
 
 Critical lane rule (OMC native): **never self-approve in the same active context**. The planning/spec pass and the verification pass must be different OMC agent lanes:
 
@@ -37,18 +37,55 @@ Enhancements over the old skill:
 - Prefer official Cursor docs and current local `--help` over remembered flags.
 - Recover from Cursor trust prompts, MCP approval prompts, Claude Code permission prompts, and long prompt quoting failures before declaring a blocker.
 
+## Runtime Surfaces
+
+The caller is not assumed to be Codex. Choose the OMC brain surface that actually exists in the current environment:
+
+- **Claude Code with the oh-my-claudecode plugin installed**: prefer native OMC skills and agents. Use slash skills such as `/oh-my-claudecode:ralplan`, `/oh-my-claudecode:team`, `/oh-my-claudecode:verify`, or the shorter aliases if setup enabled them. Delegate agent lanes with the OMC agent names/prefixes exposed by the session, for example `oh-my-claudecode:planner`, `oh-my-claudecode:architect`, `oh-my-claudecode:executor`, `oh-my-claudecode:writer`, `oh-my-claudecode:verifier`, and `oh-my-claudecode:code-reviewer`.
+- **Claude Code without the plugin**: install/setup OMC first, or fall back to plain `claude -p` headless runs with explicit role prompts. Plain Claude Code is not an OMC native lane until the plugin/setup has provided the skills, agents, and MCP config.
+- **Codex, Cursor, OpenCode, Gemini CLI, or another assistant**: do not assume native OMC agents are callable. Use durable prompt files and launch `claude -p` as the OMC brain when the `claude` CLI is available, or write a handoff artifact for a human/Claude Code session to run. The current assistant may still orchestrate Cursor and verify local evidence, but must not claim "native OMC verification" unless it actually used an OMC Claude Code lane or a Claude Code headless brain.
+- **No Claude Code/OMC available**: run Cursor directly only if the user asked for that fallback, and state that the OMC brain lane was unavailable.
+
+## OMC Plugin Prerequisites
+
+The OMC brain depends on the oh-my-claudecode Claude Code plugin or the OMC npm/runtime install.
+
+Plugin-first setup inside Claude Code:
+
+```text
+/plugin marketplace add https://github.com/Yeachan-Heo/oh-my-claudecode
+/plugin install oh-my-claudecode
+/setup
+```
+
+Run those slash commands one at a time inside Claude Code. If the session uses the longer skill names, `/oh-my-claudecode:setup` or `/oh-my-claudecode:omc-setup` are acceptable equivalents.
+
+Terminal/runtime setup:
+
+```bash
+npm i -g oh-my-claude-sisyphus@latest
+omc setup
+```
+
+After setup, the OMC reference skill should be available in Claude Code, commonly as `omc-reference`. It lists the agent catalog, skill registry, model tiers, and runtime tools. If this reference is missing, treat native OMC agent routing as unavailable until setup is fixed.
+
 ## Mandatory Documentation Check
 
-Cursor CLI and Claude Code change quickly. Before using unfamiliar or failing flags, check:
+Cursor CLI, Claude Code, and OMC change quickly. Before using unfamiliar or failing flags, check:
 
 ```bash
 cursor-agent --help || agent --help
 claude --help
+omc --help || true
 ```
 
 Official Cursor reference provided by the user:
 
 - https://cursor.com/cn/docs/cli/headless
+
+Official OMC reference:
+
+- https://github.com/Yeachan-Heo/oh-my-claudecode
 
 For OMC Claude Code routing and agents, consult the native `omc-reference` skill when skills are available.
 
@@ -73,7 +110,7 @@ git branch --show-current
 ```
 
 2. Create a durable task id and artifact paths. Prefer the user's requested documentation surface, then existing project habits, then `.omc/` or `/tmp/<project-name>/<task-id>/`.
-3. Have OMC Claude Code analyze the user's requirement and write the durable spec. Default: delegate to the `planner` or `architect` agent (`model=opus` for complex work) and let `executor`/`writer` persist the spec file. For isolation or parallel brains, run headless `claude -p` instead (see `references/claude-code-headless.md`).
+3. Have OMC Claude Code analyze the user's requirement and write the durable spec. In Claude Code with OMC installed, delegate to the `planner` or `architect` agent (`model=opus` for complex work) and let `executor`/`writer` persist the spec file. Outside Claude Code, run headless `claude -p` with an explicit planner/architect prompt instead (see `references/claude-code-headless.md`).
 4. The spec must include an `Implementation Handoff` for Cursor:
    - repo/workdir
    - edit scope and avoid list
@@ -83,7 +120,7 @@ git branch --show-current
    - complete prompt for Cursor CLI Agent
 5. Launch Cursor headless with a prompt file and full local authority.
 6. Require Cursor to write only the implementation report with summary, files changed, commands run, test results, deviations, risks, and blockers.
-7. Have OMC Claude Code write the verification result in a **separate agent lane** (`verifier` or `code-reviewer`, `model=opus` for large/security work) after checking Cursor's implementation against the approved spec, report, diff, and tests. Do not reuse the spec-authoring context for this pass.
+7. Have OMC Claude Code write the verification result in a **separate agent lane** (`verifier` or `code-reviewer`, `model=opus` for large/security work), or a separate read-only `claude -p` verification process, after checking Cursor's implementation against the approved spec, report, diff, and tests. Do not reuse the spec-authoring context for this pass.
 8. If verification finds issues, route only exact narrow fixes back to Cursor and repeat Cursor -> report -> OMC verification.
 9. Have OMC Claude Code close out by updating task/spec/verification docs into a human-readable final state, preserving Cursor's implementation report as downstream evidence, then provide a short user summary.
 
@@ -110,7 +147,7 @@ cat > /tmp/<project-name>/<task-id>/cursor.prompt.md <<'EOF'
 EOF
 ```
 
-For OMC brain work, prefer delegating to subagents via the Task tool with the user's requirement and artifact instructions. When running headless `claude -p` as a separate brain process, pass the prompt through a prompt file on stdin the same way. Do not pre-load large repo summaries; OMC Claude Code should inspect the repo itself.
+For OMC brain work inside Claude Code with OMC installed, prefer delegating to OMC subagents via the session's agent/task facility with the user's requirement and artifact instructions. When the caller is not Claude Code or native OMC agents are unavailable, run headless `claude -p` as a separate brain process and pass the prompt through a prompt file on stdin. Do not pre-load large repo summaries; OMC Claude Code should inspect the repo itself.
 
 Cursor implementation prompt:
 
@@ -155,13 +192,13 @@ Use `--approve-mcps` only when the task likely needs Cursor MCP tools or the use
 
 ## OMC Claude Code Brain Defaults
 
-Default to native OMC subagents (no recursive process):
+Default to native OMC subagents only when the current surface is Claude Code with oh-my-claudecode installed and the OMC agents are available (no recursive process):
 
 - Requirement analysis / plan / spec authoring -> `planner` or `architect` (`model=opus` for complex work).
 - Durable doc writes (spec, handoff, closeout) -> `executor` or `writer`.
 - Verification / review -> `verifier` or `code-reviewer` in a **separate** lane (`model=opus` for large/security work).
 
-Use headless `claude -p` only when you need an isolated brain process (parallel work, clean context, or a worktree-scoped brain). See `references/claude-code-headless.md` for flags and permission-mode mapping. When the session provider is non-standard (CC Switch / Bedrock / Vertex / LiteLLM), pass subagent models as tier aliases (`sonnet`/`opus`/`haiku`), not provider-specific IDs.
+If the caller is another assistant, or if Claude Code is present but OMC native agents are not callable, use headless `claude -p` as the OMC brain. Headless is also appropriate for parallel work, clean context, second opinions, or a worktree-scoped brain. See `references/claude-code-headless.md` for flags and permission-mode mapping. When the session provider is non-standard (CC Switch / Bedrock / Vertex / LiteLLM), pass subagent models as tier aliases (`sonnet`/`opus`/`haiku`), not provider-specific IDs.
 
 ## Permission And Sandbox Recovery
 

@@ -1,6 +1,6 @@
 # Claude Code Headless / OMC Brain
 
-This is the OMC Claude Code analog of `cursor-headless.md`. It covers how to run the **planning/verification brain** as OMC Claude Code, either as native oh-my-claudecode subagents (default) or as an isolated headless `claude -p` process.
+This is the OMC Claude Code analog of `cursor-headless.md`. It covers how to run the **planning/verification brain** as OMC Claude Code, either as native oh-my-claudecode subagents in Claude Code or as an isolated headless `claude -p` process from any assistant that can launch local commands.
 
 Confirm current flags with local help before using unfamiliar ones:
 
@@ -8,31 +8,65 @@ Confirm current flags with local help before using unfamiliar ones:
 claude --help
 ```
 
-For OMC agent routing, model tiers, and the team pipeline, consult the native `omc-reference` skill when skills are available.
+For OMC agent routing, model tiers, and the team pipeline, consult the native `omc-reference` skill when skills are available. If `omc-reference` is missing, do not assume native OMC agents exist.
+
+## Installation / Availability
+
+Native OMC lanes require Claude Code with the oh-my-claudecode plugin installed and setup completed.
+
+Inside Claude Code, install the plugin with slash commands entered one at a time:
+
+```text
+/plugin marketplace add https://github.com/Yeachan-Heo/oh-my-claudecode
+/plugin install oh-my-claudecode
+/setup
+```
+
+The terminal/runtime path is:
+
+```bash
+npm i -g oh-my-claude-sisyphus@latest
+omc setup
+```
+
+Use `claude --help`, `omc --help`, and the session's `omc-reference` skill to confirm current flags and agent names.
 
 ## Two Brain Modes
 
-### Mode A — Native OMC subagents (default)
+### Mode A — Native OMC subagents (default only inside Claude Code + OMC)
 
-No recursive `claude` process. The assistant delegates to oh-my-claudecode subagents via the Task/Agent tool. Keep authoring and verification in **separate lanes**:
+No recursive `claude` process. The assistant delegates to oh-my-claudecode subagents via the Claude Code session's Task/Agent facility. Keep authoring and verification in **separate lanes**:
 
 - Requirement analysis / plan / spec authoring -> `planner` or `architect`.
 - Durable doc writes (spec, handoff, closeout) -> `executor` or `writer`.
 - Verification / review -> `verifier` or `code-reviewer`, after implementation, in a separate context.
 
+Agent names may appear with the `oh-my-claudecode:` prefix depending on the session surface, for example `oh-my-claudecode:planner` and `oh-my-claudecode:verifier`.
+
 Model tiers: `haiku` (quick lookups), `sonnet` (standard), `opus` (architecture, deep analysis, large/security verification). Pass `model` on the Agent call.
 
 This mode shares the current repo and the assistant's normal file permissions, so spec/handoff/closeout writes land directly.
 
+Do not use this mode from Codex, Cursor, OpenCode, Gemini CLI, or another non-Claude-Code assistant unless that surface explicitly exposes Claude Code OMC agents. Use Mode B instead.
+
 ### Mode B — Headless `claude -p` subprocess
 
-Use only when you need an isolated brain process: parallel brains, a clean context window, a worktree-scoped brain, or a second opinion that must not see the current context.
+Use when the current caller is not Claude Code, when native OMC agents are unavailable, or when you need an isolated brain process: parallel brains, a clean context window, a worktree-scoped brain, or a second opinion that must not see the current context.
 
 ```bash
 claude -p \
   --permission-mode acceptEdits \
   --add-dir /path/to/repo \
   < /tmp/<project-name>/<task-id>/claude.prompt.md
+```
+
+For verification, prefer read-only permissions:
+
+```bash
+claude -p \
+  --permission-mode plan \
+  --add-dir /path/to/repo \
+  < /tmp/<project-name>/<task-id>/claude.verify.prompt.md
 ```
 
 Important flags:
@@ -74,7 +108,7 @@ When the session provider is non-standard (CC Switch / Bedrock / Vertex / LiteLL
 
 ## Progress Notes
 
-- Native subagent results return as the tool result; relay only what matters.
+- Native subagent results return as the tool result; relay only what matters. This applies only when the current surface actually supports OMC native agents.
 - For headless runs, monitor durable artifacts (report files, `git status --short`, `git diff --stat`), not just stdout.
 - Keep the spec-authoring lane and the verification lane separate; never self-approve in the same active context.
 - Do not let the brain commit, push, deploy, or open PRs unless the user explicitly asked.
