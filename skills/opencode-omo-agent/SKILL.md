@@ -12,19 +12,23 @@ This skill is the OpenCode/OMO-focused sibling of `omx-omo-agent`. Keep the same
 - **Commander**: Codex, Claude Code, Cursor, OMX, or the current assistant. Owns requirement shaping, prompt construction, launch, monitoring, verification, and final reporting.
 - **Worker**: OMO Ultimate running inside OpenCode. Owns implementation work when the user wants OMO/OpenCode.
 
-The stable core launch path is the `omx-omo-agent` OpenCode direct-run pattern:
+The stable core launch path is the `omx-omo-agent` OpenCode direct-run pattern, but pass prompt files by path instead of shell-inlining them:
 
 ```bash
-opencode run --dangerously-skip-permissions --dir <repo> "$(cat <prompt-file>)"
+opencode run --dangerously-skip-permissions --dir <repo> \
+  "Read the complete task prompt from this local file, then follow it exactly: <prompt-file>"
 ```
 
 For OMO slash commands, put the slash command at the very beginning of the message:
 
 ```bash
-opencode run --dangerously-skip-permissions --dir <repo> "/ulw-loop $(cat <prompt-file>)"
+opencode run --dangerously-skip-permissions --dir <repo> \
+  "/ulw-loop Read the complete task prompt from this local file, then follow it exactly: <prompt-file>"
 ```
 
 Do not treat `omo ulw-loop` as the primary path. OMO Ultimate slash commands such as `/ulw-loop` are triggered by message text inside OpenCode.
+
+Avoid hand-writing commands like `"/ulw-loop $(cat <prompt-file>)"`. AI development tools often generate malformed shell quoting or forget the closing `)` / quote, and large prompts make that worse. A local prompt file is already readable to OpenCode in the same workspace, so prefer passing the file path in the message.
 
 ## Mandatory Check
 
@@ -81,7 +85,7 @@ The command above is equivalent to:
 opencode run \
   --dangerously-skip-permissions \
   --dir /path/to/repo \
-  "/ulw-loop $(cat /tmp/<project-name>/<task-id>/opencode.prompt.md)"
+  "/ulw-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<project-name>/<task-id>/opencode.prompt.md"
 ```
 
 Default launcher behavior is intentionally minimal:
@@ -90,6 +94,7 @@ Default launcher behavior is intentionally minimal:
 - It does not default to JSON/log flags; add `--json --print-logs` only when machine-readable logs are needed.
 - It does not default to session resume/continue; reuse can cause stale loops or apparent no-progress runs.
 - It does not redirect OpenCode home state by default; use the `omx-omo-agent` recovery references only if OpenCode has a real home-state write failure.
+- It does not inline prompt-file contents by default; it passes the prompt file path to OpenCode. Use `--inline-prompt` only for tiny prompts when path reading is not possible.
 
 Options:
 
@@ -100,6 +105,7 @@ Options:
 - `--agent <name>`: pass an OpenCode-visible agent id/name from `opencode agent list`.
 - `--model <provider/model>`: pass an OpenCode-visible model from `opencode models`.
 - `--dry-run`: print the command and message prefix without starting OpenCode.
+- `--inline-prompt`: inline the prompt file content into the OpenCode message. Avoid this for normal use.
 
 ## Prompt Template
 
@@ -121,10 +127,10 @@ Run the required checks, or explain why they cannot run and use the next-best ve
 Write the implementation report with: summary, files changed, commands run and results, deviations, risks, blockers, and next recommended action.
 ```
 
-When using `/ulw-loop`, the final OpenCode message must be:
+When using `/ulw-loop`, the final OpenCode message must start with `/ulw-loop`. Prefer a prompt-file reference:
 
 ```text
-/ulw-loop <the prompt template content>
+/ulw-loop Read the complete task prompt from this local file, then follow it exactly: <absolute prompt file path>
 ```
 
 ## Agent Selection
@@ -159,7 +165,7 @@ test -s <implementation-report-path> && wc -l <implementation-report-path> || ec
 
 If there is no useful output, no diff, and no report after a bounded wait, do one focused recovery:
 
-- prompt inline failure -> use a prompt file and `$(cat <prompt-file>)`
+- prompt inline failure -> pass the prompt file path in the OpenCode message
 - permissions prompt -> use `--dangerously-skip-permissions`
 - stale/no-progress session -> start a fresh `opencode run` without `--continue` or `--session`
 - direct OpenCode cannot progress -> read `references/opencode-server-supervision.md`

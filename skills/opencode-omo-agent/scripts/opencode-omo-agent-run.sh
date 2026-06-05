@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  opencode-omo-agent-run.sh --repo /path/to/repo --task task-id --prompt-file /tmp/task.prompt.md [--slash-command name] [--no-danger] [--json] [--print-logs] [--agent name] [--model provider/model] [--dry-run]
+  opencode-omo-agent-run.sh --repo /path/to/repo --task task-id --prompt-file /tmp/task.prompt.md [--slash-command name] [--inline-prompt] [--no-danger] [--json] [--print-logs] [--agent name] [--model provider/model] [--dry-run]
 
 Simple non-interactive OpenCode+OMO launcher. Stores logs under /tmp/opencode-omo-agent-sessions.
 EOF
@@ -20,6 +20,7 @@ print_logs="0"
 agent=""
 model=""
 dry_run="0"
+inline_prompt="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,6 +34,7 @@ while [[ $# -gt 0 ]]; do
     --agent) agent="${2:-}"; shift 2 ;;
     --model) model="${2:-}"; shift 2 ;;
     --dry-run) dry_run="1"; shift ;;
+    --inline-prompt) inline_prompt="1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -68,7 +70,11 @@ mkdir -p "$state_dir"
 log_file="$state_dir/opencode.$(date +%Y%m%d%H%M%S).log"
 last_file="$state_dir/opencode.last.log"
 
-prompt="$(cat "$prompt_file")"
+if [[ "$inline_prompt" == "1" ]]; then
+  prompt="$(cat "$prompt_file")"
+else
+  prompt="Read the complete task prompt from this local file, then follow it exactly: $prompt_file"
+fi
 if [[ -n "$slash_command" ]]; then
   slash_command="${slash_command#/}"
   prompt="/$slash_command $prompt"

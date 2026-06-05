@@ -13,7 +13,8 @@ cd /path/to/worktree && opencode run "/ralph-loop <work prompt>"
 For long prompts, keep the first token `/ralph-loop` in the prompt file and run:
 
 ```bash
-cd /path/to/worktree && opencode run "$(cat /tmp/<task>-ralph-loop-prompt.txt)"
+cd /path/to/worktree && opencode run \
+  "/ralph-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-ralph-loop-prompt.txt"
 ```
 
 Use `/ralph-loop` as the first token in the prompt. Do not default to `ultrawork` unless the user asks for it.

@@ -32,7 +32,8 @@ mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<tas
 XDG_DATA_HOME=/tmp/opencode-<task>-data \
 XDG_CACHE_HOME=/tmp/opencode-<task>-cache \
 XDG_STATE_HOME=/tmp/opencode-<task>-state \
-opencode run --print-logs --log-level INFO "$(cat /tmp/<task>-omo-fix-prompt.txt)"
+opencode run --print-logs --log-level INFO \
+  "/ralph-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-omo-fix-prompt.txt"
 ```
 
 This keeps source edits in the worktree while letting OpenCode write its own SQLite/session files.
@@ -52,5 +53,5 @@ If Codex/OpenCode is running but there is no new diff/report after a few minutes
 ## Pitfalls
 
 - MCP token refresh warnings from Codex can be noisy and non-fatal; look for actual agent continuation or final error.
-- `opencode run "$(cat prompt)"` can fail in nested sandboxes due to OpenCode DB writes, even when it works directly in Hermes.
+- `opencode run "$(cat prompt)"` can fail from malformed shell quoting or nested-sandbox OpenCode DB writes. Prefer passing the prompt file path in the OpenCode message.
 - Do not let Codex implement the code if the user's requested boundary is “Codex invokes OpenCode”; the implementation worker should still be OpenCode/OMO.
