@@ -15,6 +15,7 @@ unrelated project state.
 | `merge-branch-release` | Safely merge the current working branch into a target release branch, push the target branch, and return to the original branch. |
 | `next-ai-drawio` | Help AI agents configure and use the Next AI Draw.io MCP server for browser-previewed draw.io diagram creation, editing, and export. |
 | `obsidian-agile-project` | Structure Obsidian vaults for agile PRDs, tasks, progress tracking, and dashboards. |
+| `opencode-omo-agent` | Delegate planning, implementation, debugging, tests, and fix loops to OMO/OpenCode agents in non-interactive mode. |
 
 ## Repository Layout
 

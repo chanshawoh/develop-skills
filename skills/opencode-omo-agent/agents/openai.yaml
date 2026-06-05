@@ -1,0 +1,7 @@
+interface:
+  display_name: "OpenCode OMO Agent"
+  short_description: "Delegate work to OMO/OpenCode agents"
+  default_prompt: "Use $opencode-omo-agent to have Codex, Claude Code, Cursor, or another AI tool orchestrate OMO/OpenCode non-interactive work with the right agent, unless the user names a different worker."
+
+policy:
+  allow_implicit_invocation: true
