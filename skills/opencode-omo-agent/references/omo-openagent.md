@@ -25,7 +25,7 @@ Important: upstream warns not to use `bunx omo` or `npx omo`, because npm may re
 Canonical OMO Ultimate run:
 
 ```bash
-opencode run --dir /repo "/ulw-loop task prompt"
+opencode run --dangerously-skip-permissions --dir /repo "/ulw-loop task prompt"
 ```
 
 Wrapper compatibility:
@@ -48,7 +48,7 @@ Options confirmed from docs/source:
 - `--verbose`: full event stream.
 - `--session-id <id>`: resume existing session.
 
-`opencode run` starts/connects to OpenCode. With the OMO plugin installed, a message that starts with or contains a raw slash command such as `/ulw-loop` is intercepted by OMO's OpenCode hooks and routed through the slash-command/chat-message path.
+`opencode run` starts/connects to OpenCode. With the OMO plugin installed, a message whose first user-visible text is a raw slash command such as `/ulw-loop` is intercepted by OMO's OpenCode hooks and routed through the slash-command/chat-message path.
 
 Do not confuse this with the Codex Light `omo ulw-loop` component CLI. The Codex component is installed by `lazycodex-ai`; OMO Ultimate slash commands run inside OpenCode.
 
@@ -180,5 +180,7 @@ Confirmed from upstream source:
 Practical invocation:
 
 ```bash
-opencode run --dir /repo --format json --print-logs --log-level INFO --dangerously-skip-permissions "/ulw-loop Ship the requested feature"
+opencode run --dangerously-skip-permissions --dir /repo "/ulw-loop Ship the requested feature"
 ```
+
+Only add `--format json --print-logs --log-level INFO`, `--agent`, `--model`, `--continue`, or `--session` when there is a concrete reason. The stable default is a fresh direct `opencode run` with `/ulw-loop` at the very beginning of the message.
