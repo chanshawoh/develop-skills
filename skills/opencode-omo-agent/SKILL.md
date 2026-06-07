@@ -1,6 +1,6 @@
 ---
 name: opencode-omo-agent
-description: Use when Codex, Claude Code, Cursor, OMX, or another AI coding tool should delegate planning, implementation, refactoring, debugging, tests, reviews, repository exploration, orchestration, or fix loops to Oh My OpenAgent / OMO running inside OpenCode. Use when the user says to use OpenCode, OMO, oh-my-openagent, opencode-omo-agent, /ulw-loop, /ralph-loop, Sisyphus, Hephaestus, Prometheus, Atlas, or another OMO agent, unless they explicitly assign the work to a different tool or human.
+description: Use when Codex, Claude Code, Cursor, OMX, or another AI coding tool should delegate planning, implementation, refactoring, debugging, tests, reviews, repository exploration, orchestration, or fix loops to Oh My OpenAgent / OMO running inside OpenCode. Use when the user says to use OpenCode, OMO, oh-my-openagent, opencode-omo-agent, /init-deep, /ralph-loop, /ulw-loop, /cancel-ralph, /refactor, /start-work, /stop-continuation, /handoff, Sisyphus, Hephaestus, Prometheus, Atlas, or another OMO agent, unless they explicitly assign the work to a different tool or human.
 ---
 
 # OpenCode OMO Agent
@@ -30,6 +30,33 @@ Do not treat `omo ulw-loop` as the primary path. OMO Ultimate slash commands suc
 
 Avoid hand-writing commands like `"/ulw-loop $(cat <prompt-file>)"`. AI development tools often generate malformed shell quoting or forget the closing `)` / quote, and large prompts make that worse. A local prompt file is already readable to OpenCode in the same workspace, so prefer passing the file path in the message.
 
+## OMO Slash Commands
+
+OMO slash commands are not default behavior. Use them only when the user explicitly requests the command, when the task wording clearly names the command, or when the commander intentionally selects the matching OMO workflow. The final OpenCode message must start with the slash command, before any prompt-file instruction.
+
+Supported OMO command routing:
+
+- `/init-deep`: initialize a layered `AGENTS.md` knowledge base.
+- `/ralph-loop`: start a self-referential development loop until completion.
+- `/ulw-loop`: start the Ultimate/Ultrawork loop and continue into overload mode.
+- `/cancel-ralph`: cancel an active Ralph loop.
+- `/refactor`: run intelligent refactoring with LSP, AST-grep, architecture analysis, and TDD verification.
+- `/start-work`: start a Sisyphus work session from a Prometheus plan.
+- `/stop-continuation`: stop all continuation mechanisms for this session, including Ralph loop, todo continuation, and Boulder.
+- `/handoff`: create a detailed context summary so work can continue in a new session.
+
+Use the launcher option by removing the leading slash:
+
+```bash
+skills/opencode-omo-agent/scripts/opencode-omo-agent-run.sh \
+  --repo /path/to/repo \
+  --task <task-id> \
+  --prompt-file /tmp/<project-name>/<task-id>/opencode.prompt.md \
+  --slash-command refactor
+```
+
+The command above sends an OpenCode message that begins with `/refactor`. Replace `refactor` with `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `start-work`, `stop-continuation`, or `handoff` as needed.
+
 ## Mandatory Check
 
 Before changing launch flags or recovering from a failing run, check:
@@ -51,7 +78,7 @@ git branch --show-current
 ```
 
 3. Write a durable prompt file under `.omx/`, project docs, or `/tmp/<project-name>/<task-id>/`.
-4. If the user requested `/ulw-loop`, `/ralph-loop`, or another OMO slash command, ensure it is the first text in the final OpenCode message.
+4. If the user requested `/init-deep`, `/ralph-loop`, `/ulw-loop`, `/cancel-ralph`, `/refactor`, `/start-work`, `/stop-continuation`, `/handoff`, or another OMO slash command, ensure it is the first text in the final OpenCode message.
 5. Launch with the bundled script or the direct command.
 6. Monitor progress with diff/report checks; do not trust process liveness alone.
 7. Verify OMO's work independently by reading the diff and running the smallest checks that prove the done-when criteria.
