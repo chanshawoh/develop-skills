@@ -57,7 +57,24 @@ skills/opencode-omo-agent/scripts/opencode-omo-agent-run.sh \
 
 The command above sends an OpenCode message that begins with `/refactor`. Replace `refactor` with `init-deep`, `ralph-loop`, `ulw-loop`, `cancel-ralph`, `start-work`, `stop-continuation`, or `handoff` as needed.
 
-## Mandatory Check
+## Preflight Checks
+
+### Permission Gate
+
+Before launching the bundled script from any installed skill location, verify it is executable. If it is not executable, or if shell execution fails with `permission denied`, automatically fix the script mode and retry once:
+
+```bash
+chmod +x /path/to/opencode-omo-agent/scripts/opencode-omo-agent-run.sh
+```
+
+Do this without asking the user when the script is owned by the current user and the path is under a local skill installation such as `~/.agents/skills/opencode-omo-agent/`, `~/.codex/skills/opencode-omo-agent/`, or this repository's `skills/opencode-omo-agent/`. Use `bash /path/to/script.sh ...` only as a temporary fallback when `chmod +x` cannot be applied.
+
+Recommended preflight:
+
+```bash
+test -x /path/to/opencode-omo-agent/scripts/opencode-omo-agent-run.sh || \
+  chmod +x /path/to/opencode-omo-agent/scripts/opencode-omo-agent-run.sh
+```
 
 Before changing launch flags or recovering from a failing run, check:
 
@@ -79,11 +96,12 @@ git branch --show-current
 
 3. Write a durable prompt file under `.omx/`, project docs, or `/tmp/<project-name>/<task-id>/`.
 4. If the user requested `/init-deep`, `/ralph-loop`, `/ulw-loop`, `/cancel-ralph`, `/refactor`, `/start-work`, `/stop-continuation`, `/handoff`, or another OMO slash command, ensure it is the first text in the final OpenCode message.
-5. Launch with the bundled script or the direct command.
-6. Monitor progress with diff/report checks; do not trust process liveness alone.
-7. Verify OMO's work independently by reading the diff and running the smallest checks that prove the done-when criteria.
-8. If verification finds issues, send exact narrow fixes back through the same OpenCode/OMO path.
-9. Final response: worker used, changed files, checks run, outcome, and residual risks.
+5. Ensure the bundled launcher is executable; if not, automatically run `chmod +x` and continue.
+6. Launch with the bundled script or the direct command.
+7. Monitor progress with diff/report checks; do not trust process liveness alone.
+8. Verify OMO's work independently by reading the diff and running the smallest checks that prove the done-when criteria.
+9. If verification finds issues, send exact narrow fixes back through the same OpenCode/OMO path.
+10. Final response: worker used, changed files, checks run, outcome, and residual risks.
 
 ## Launcher
 
@@ -192,6 +210,7 @@ test -s <implementation-report-path> && wc -l <implementation-report-path> || ec
 
 If there is no useful output, no diff, and no report after a bounded wait, do one focused recovery:
 
+- `permission denied` on the launcher -> run `chmod +x <launcher>` automatically and retry once
 - prompt inline failure -> pass the prompt file path in the OpenCode message
 - permissions prompt -> use `--dangerously-skip-permissions`
 - stale/no-progress session -> start a fresh `opencode run` without `--continue` or `--session`
