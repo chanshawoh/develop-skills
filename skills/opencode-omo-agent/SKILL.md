@@ -140,10 +140,12 @@ Default launcher behavior is intentionally minimal:
 - It does not default to session resume/continue; reuse can cause stale loops or apparent no-progress runs.
 - It does not redirect OpenCode home state by default; use the `omx-omo-agent` recovery references only if OpenCode has a real home-state write failure.
 - It does not inline prompt-file contents by default; it passes the prompt file path to OpenCode. Use `--inline-prompt` only for tiny prompts when path reading is not possible.
+- It injects a worker guard by default so the OMO/OpenCode worker implements in the current session instead of calling this launcher, starting another `opencode run`, or recursively launching `/ralph-loop`, `/ulw-loop`, `/start-work`, or another OMO command.
 
 Options:
 
 - `--slash-command <name>`: prefix `/<name> ` at the very beginning of the final message, for example `ulw-loop`.
+- `--allow-nested-launch`: opt out of the worker guard only when the task is explicitly to test or orchestrate nested OMO/OpenCode launches.
 - `--no-danger`: omit `--dangerously-skip-permissions`.
 - `--json`: add `--format json`.
 - `--print-logs`: add `--print-logs --log-level INFO`.
@@ -168,6 +170,7 @@ Implementation report path: <absolute path>.
 
 Inspect the repo before editing. Keep changes surgical and consistent with existing patterns.
 Do not touch unrelated files. Do not commit, push, deploy, or expose secrets unless explicitly instructed.
+Do not invoke `opencode-omo-agent-run.sh`, run `opencode run`, or start another OMO slash loop from inside the worker session unless the task explicitly says to test nested launcher behavior.
 Run the required checks, or explain why they cannot run and use the next-best verification.
 Write the implementation report with: summary, files changed, commands run and results, deviations, risks, blockers, and next recommended action.
 ```
@@ -211,6 +214,7 @@ test -s <implementation-report-path> && wc -l <implementation-report-path> || ec
 If there is no useful output, no diff, and no report after a bounded wait, do one focused recovery:
 
 - `permission denied` on the launcher -> run `chmod +x <launcher>` automatically and retry once
+- worker repeatedly starts this launcher or another `opencode run` -> kill the nested processes, retry once with the same prompt through direct `opencode run` or the launcher guard, and explicitly instruct the worker to implement directly without starting another slash-loop
 - prompt inline failure -> pass the prompt file path in the OpenCode message
 - permissions prompt -> use `--dangerously-skip-permissions`
 - stale/no-progress session -> start a fresh `opencode run` without `--continue` or `--session`

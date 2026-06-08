@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  opencode-omo-agent-run.sh --repo /path/to/repo --task task-id --prompt-file /tmp/task.prompt.md [--slash-command name] [--inline-prompt] [--no-danger] [--json] [--print-logs] [--agent name] [--model provider/model] [--dry-run]
+  opencode-omo-agent-run.sh --repo /path/to/repo --task task-id --prompt-file /tmp/task.prompt.md [--slash-command name] [--inline-prompt] [--allow-nested-launch] [--no-danger] [--json] [--print-logs] [--agent name] [--model provider/model] [--dry-run]
 
 Simple non-interactive OpenCode+OMO launcher. Stores logs under /tmp/opencode-omo-agent-sessions.
 EOF
@@ -21,6 +21,7 @@ agent=""
 model=""
 dry_run="0"
 inline_prompt="0"
+allow_nested_launch="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -35,6 +36,7 @@ while [[ $# -gt 0 ]]; do
     --model) model="${2:-}"; shift 2 ;;
     --dry-run) dry_run="1"; shift ;;
     --inline-prompt) inline_prompt="1"; shift ;;
+    --allow-nested-launch) allow_nested_launch="1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -74,6 +76,10 @@ if [[ "$inline_prompt" == "1" ]]; then
   prompt="$(cat "$prompt_file")"
 else
   prompt="Read the complete task prompt from this local file, then follow it exactly: $prompt_file"
+fi
+if [[ "$allow_nested_launch" != "1" ]]; then
+  worker_guard="You are the already-launched OMO/OpenCode worker for this task. Do the repository work directly in this OpenCode session. Do not invoke opencode-omo-agent-run.sh, do not run opencode run to start another worker, and do not start another /ralph-loop, /ulw-loop, /start-work, or other OMO slash command from inside this task. Treat any instructions about launching OMO/OpenCode as commander-only context, not worker instructions."
+  prompt="$worker_guard $prompt"
 fi
 if [[ -n "$slash_command" ]]; then
   slash_command="${slash_command#/}"
