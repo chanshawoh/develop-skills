@@ -16,6 +16,7 @@ Use this skill to let the current AI tool act as the commander and Cursor CLI Ag
 - **Default routing**: Delegate implementation-shaped work to Cursor whenever useful. Cursor can inspect code, edit files, run commands, test, debug, review, and report. Keep work in the commander only when it is tiny, user-specified, unsupported by Cursor, or requires a capability the commander uniquely has.
 - **User override**: If the user names who should do the work, honor that assignment. Examples: "你来改" means the current assistant edits; "让 Claude Code 做" means do not route that slice to Cursor unless needed as a helper.
 - **Authority boundary**: Do not let Cursor commit, push, deploy, delete unrelated work, expose secrets, or operate production systems unless the user explicitly requested that action.
+- **Native runtime boundary**: Cursor CLI Agent depends on the user's real Cursor profile and macOS Keychain. Prefer launching Cursor from a native Terminal, iTerm, or attached tmux shell with the real `HOME`; do not redirect `HOME` or Cursor state to `/tmp` to work around sandbox errors.
 
 ## Mandatory Cursor Check
 
@@ -43,7 +44,7 @@ git branch --show-current
    - Use another worker only when the user explicitly names it or Cursor is unavailable after recovery attempts.
 4. Create a durable task id and artifact paths under `.omx/`, project docs, or `/tmp/<project-name>/<task-id>/`.
 5. Write a Cursor prompt file. Never inline long prompts in shell commands.
-6. Launch Cursor through the bundled script.
+6. Launch Cursor through the bundled script. If the script reports that the current surface is Codex Desktop/App, run the generated `native-command.sh` from the user's native shell or an attached OMX/OMC tmux shell instead of retrying inside the app sandbox.
 7. Monitor git diff, report files, and command output. Do not trust process liveness alone.
 8. Verify Cursor's work independently: read the diff, inspect changed files, run the smallest tests/checks that prove the claim, and route exact fixes back to Cursor when needed.
 9. Final response: worker used, changed files, checks run, outcome, and residual risks.
@@ -102,6 +103,13 @@ test -s <implementation-report-path> && wc -l <implementation-report-path> || ec
 If there is no output, no diff, and no report after a bounded wait, retry with a prompt file, full headless permissions, `--continue` or `--resume`, and a narrower prompt. If that still fails, write a blocker note with attempted commands and evidence, then switch to the next viable worker or direct execution.
 
 ## Permission Recovery
+
+Cursor is a native macOS credentialed tool, not a generic nested-sandbox worker. Prefer the native user environment over sandbox workarounds:
+
+- Keep the real `HOME` so Cursor can read/write `~/.cursor` and access Keychain-backed credentials.
+- Do not set `HOME=/tmp/...`, `XDG_*=/tmp/...`, or similar Cursor state redirects as a recovery step.
+- If Codex Desktop/App blocks Cursor credentials, use the launcher's generated `native-command.sh` from Terminal, iTerm, or an attached tmux shell.
+- Treat `SecItemCopyMatching failed -50`, segmentation faults after changing `HOME`, or inability to write `~/.cursor` from Codex App as a runtime-surface blocker, not a task blocker.
 
 Preferred implementation flags:
 

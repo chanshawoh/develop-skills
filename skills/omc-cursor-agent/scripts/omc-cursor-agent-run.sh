@@ -7,6 +7,7 @@ Usage:
   omc-cursor-agent-run.sh --repo /path/to/repo --task task-id --prompt-file /tmp/task.cursor.prompt.md [--fresh] [--model model] [--no-approve-mcps] [--worktree name]
 
 Non-interactive Cursor headless launcher. Stores session state under /tmp/omc-cursor-agent-sessions.
+Cursor uses macOS Keychain and the user's Cursor profile. Run this launcher from a native terminal/session, not from a nested app sandbox.
 EOF
 }
 
@@ -65,6 +66,36 @@ log_file="$state_dir/cursor.$(date +%Y%m%d%H%M%S).log"
 last_file="$state_dir/cursor.last.txt"
 chat_file="$state_dir/cursor.chat"
 continue_file="$state_dir/cursor.continue"
+native_command_file="$state_dir/native-command.sh"
+
+shell_quote() {
+  printf "%q" "$1"
+}
+
+write_native_command() {
+  {
+    echo "#!/usr/bin/env bash"
+    echo "set -euo pipefail"
+    printf "cd "
+    shell_quote "$repo"
+    printf "\nexec "
+    local arg
+    for arg in "${cmd[@]}"; do
+      shell_quote "$arg"
+      printf " "
+    done
+    printf "< "
+    shell_quote "$prompt_file"
+    printf "\n"
+  } > "$native_command_file"
+  chmod +x "$native_command_file"
+}
+
+running_in_codex_app() {
+  [[ "${__CFBundleIdentifier:-}" == "com.openai.codex" ]] && return 0
+  [[ "${CODEX_INTERNAL_ORIGINATOR_OVERRIDE:-}" == *"Codex Desktop"* ]] && return 0
+  return 1
+}
 
 extract_chat_id() {
   local file="$1"
@@ -121,6 +152,24 @@ if [[ "$fresh" != "1" && -s "$chat_file" ]]; then
   cmd+=(--resume "$(cat "$chat_file")")
 elif [[ "$fresh" != "1" && -f "$continue_file" ]]; then
   cmd+=(--continue)
+fi
+
+write_native_command
+
+if running_in_codex_app && [[ "${CURSOR_AGENT_ALLOW_CODEX_APP:-0}" != "1" ]]; then
+  cat >&2 <<EOF
+Cursor CLI Agent should be launched from the native user environment, not from Codex Desktop/App.
+
+Why: Cursor uses the macOS Keychain and the real Cursor profile under \$HOME. In nested app sandboxes,
+changing HOME or redirecting state to /tmp can trigger native credential failures such as
+"SecItemCopyMatching failed -50" and crashes.
+
+Run this generated command from Terminal, iTerm, or an attached OMC/OMX tmux shell:
+$native_command_file
+
+Set CURSOR_AGENT_ALLOW_CODEX_APP=1 only if you explicitly want to bypass this guard.
+EOF
+  exit 78
 fi
 
 "${cmd[@]}" < "$prompt_file" | tee "$log_file" | tee "$last_file"

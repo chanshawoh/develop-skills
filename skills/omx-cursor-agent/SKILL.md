@@ -27,6 +27,7 @@ Enhancements over the old skill:
 
 - Use Cursor headless mode, not interactive terminal mode.
 - Use high-authority Cursor flags for autonomous local development.
+- Run Cursor from the native user environment when possible; Cursor uses the real `HOME`, `~/.cursor`, and macOS Keychain credentials. Do not recover Cursor credential failures by redirecting `HOME` or Cursor state to `/tmp`.
 - Put long prompts in temporary files and feed them through stdin.
 - Reuse Cursor conversations with `--resume` or `--continue` across assistant turns.
 - Prefer official Cursor docs and current local `--help` over remembered flags.
@@ -74,7 +75,7 @@ git branch --show-current
    - required tests/checks
    - report path
    - complete prompt for Cursor CLI Agent
-5. Launch Cursor headless with a prompt file and full local authority.
+5. Launch Cursor headless with a prompt file and full local authority. If the current assistant is running inside Codex Desktop/App, use the launcher's generated `native-command.sh` from Terminal, iTerm, or an attached OMX tmux shell instead of retrying Cursor inside the app sandbox.
 6. Require Cursor to write only the implementation report with summary, files changed, commands run, test results, deviations, risks, and blockers.
 7. Ask OMX/Codex to write the verification result after checking Cursor's implementation against the approved spec, report, diff, and tests.
 8. If verification finds issues, route only exact narrow fixes back to Cursor and repeat Cursor -> report -> OMX verification.
@@ -148,6 +149,8 @@ Use `--approve-mcps` only when the task likely needs Cursor MCP tools or the use
 
 ## Permission And Sandbox Recovery
 
+- Cursor native runtime: use the real `HOME` and native shell environment. Do not set `HOME=/tmp/...` or redirect `XDG_*` state for Cursor.
+- Codex Desktop/App credential failure: if Cursor cannot write `~/.cursor`, reports `SecItemCopyMatching failed -50`, or crashes after HOME/state changes, stop retrying inside the app sandbox and run the generated `native-command.sh` from a native terminal or attached OMX tmux shell.
 - Cursor implementation: `-p --trust --force --sandbox disabled --workspace <repo>`.
 - Cursor MCP prompt/approval friction: add `--approve-mcps` if MCP use is intended and safe.
 - Cursor resume: `--resume <chatId>` when known; otherwise `--continue` for the same task.
