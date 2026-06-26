@@ -4,10 +4,10 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  omc-cursor-agent-run.sh --repo /path/to/repo --task task-id --prompt-file /tmp/task.cursor.prompt.md [--fresh] [--model model] [--no-approve-mcps] [--worktree name]
+  omc-cursor-agent-run.sh --repo /path/to/repo --task task-id --prompt-file /tmp/task.cursor.prompt.md [--fresh] [--model model] [--mode ask|plan] [--no-approve-mcps] [--worktree name]
 
 Non-interactive Cursor headless launcher. Stores session state under /tmp/omc-cursor-agent-sessions.
-Cursor uses macOS Keychain and the user's Cursor profile. Run this launcher from a native terminal/session, not from a nested app sandbox.
+Cursor uses the system Cursor CLI with the current user's normal environment.
 EOF
 }
 
@@ -16,6 +16,7 @@ task=""
 prompt_file=""
 fresh="0"
 model=""
+mode=""
 approve_mcps="1"
 worktree=""
 
@@ -26,6 +27,7 @@ while [[ $# -gt 0 ]]; do
     --prompt-file) prompt_file="${2:-}"; shift 2 ;;
     --fresh) fresh="1"; shift ;;
     --model) model="${2:-}"; shift 2 ;;
+    --mode) mode="${2:-}"; shift 2 ;;
     --no-approve-mcps) approve_mcps="0"; shift ;;
     --worktree) worktree="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -91,12 +93,6 @@ write_native_command() {
   chmod +x "$native_command_file"
 }
 
-running_in_codex_app() {
-  [[ "${__CFBundleIdentifier:-}" == "com.openai.codex" ]] && return 0
-  [[ "${CODEX_INTERNAL_ORIGINATOR_OVERRIDE:-}" == *"Codex Desktop"* ]] && return 0
-  return 1
-}
-
 extract_chat_id() {
   local file="$1"
   command -v python3 >/dev/null 2>&1 || return 0
@@ -144,6 +140,10 @@ if [[ -n "$model" ]]; then
   cmd+=(--model "$model")
 fi
 
+if [[ -n "$mode" ]]; then
+  cmd+=(--mode "$mode")
+fi
+
 if [[ -n "$worktree" ]]; then
   cmd+=(-w "$worktree")
 fi
@@ -156,23 +156,18 @@ fi
 
 write_native_command
 
-if running_in_codex_app && [[ "${CURSOR_AGENT_ALLOW_CODEX_APP:-0}" != "1" ]]; then
-  cat >&2 <<EOF
-Cursor CLI Agent should be launched from the native user environment, not from Codex Desktop/App.
-
-Why: Cursor uses the macOS Keychain and the real Cursor profile under \$HOME. In nested app sandboxes,
-changing HOME or redirecting state to /tmp can trigger native credential failures such as
-"SecItemCopyMatching failed -50" and crashes.
-
-Run this generated command from Terminal, iTerm, or an attached OMC/OMX tmux shell:
-$native_command_file
-
-Set CURSOR_AGENT_ALLOW_CODEX_APP=1 only if you explicitly want to bypass this guard.
-EOF
-  exit 78
-fi
-
 "${cmd[@]}" < "$prompt_file" | tee "$log_file" | tee "$last_file"
+status=${PIPESTATUS[0]}
+
+if [[ "$status" -ne 0 ]]; then
+  cat >&2 <<EOF
+cursor-agent exited with status $status.
+Log: $log_file
+Last output: $last_file
+Repro command: $native_command_file
+EOF
+  exit "$status"
+fi
 
 new_chat="$(extract_chat_id "$log_file" | tail -1 || true)"
 if [[ -n "${new_chat:-}" ]]; then

@@ -26,14 +26,15 @@ Important flags:
 - `--workspace <path>`: set workspace directory.
 - `-w, --worktree [name]`: run in a Cursor-managed isolated worktree.
 
-## Native macOS Runtime
+## System macOS Runtime
 
-Cursor CLI Agent should run in the user's native macOS environment whenever possible:
+Cursor CLI Agent should use the system CLI and the user's normal macOS environment:
 
 - Use the real `HOME` and the user's normal shell environment so Cursor can access `~/.cursor` and macOS Keychain credentials.
 - Use `--sandbox disabled` for Cursor's own sandbox, but do not confuse that with the outer host application's sandbox.
 - Do not recover Cursor credential failures by setting `HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, or `XDG_STATE_HOME` to `/tmp`.
-- If a launcher is running from Codex Desktop/App, prefer generating a shell script and running it from Terminal, iTerm, or an attached tmux shell.
+- Do not treat Codex Desktop/App as proof that Cursor is unavailable. First run the system `cursor-agent`/`agent` CLI; it may have valid login and Keychain access.
+- If the actual Cursor run fails with Keychain/profile errors, use the launcher's log and generated `native-command.sh` as a repro path from Terminal, iTerm, or an attached tmux shell.
 
 Known bad recovery pattern:
 
@@ -41,7 +42,7 @@ Known bad recovery pattern:
 HOME=/tmp/cursor-home cursor-agent -p ...
 ```
 
-This can make Cursor miss its real profile and trigger native credential errors such as `SecItemCopyMatching failed -50` or crashes. Treat those symptoms as evidence to move the Cursor run to the native environment, not as a reason to keep changing state directories.
+This can make Cursor miss its real profile and trigger native credential errors such as `SecItemCopyMatching failed -50` or crashes. Treat those symptoms as evidence to preserve logs and retry from a native shell, not as a reason to keep changing state directories.
 
 ## Model Selection
 
