@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  omx-omo-agent-run.sh --tool codex|opencode --repo /path/to/repo --task task-id --prompt-file /tmp/task.prompt.md [--fresh]
+  omx-omo-agent-run.sh --tool codex|opencode --repo /path/to/repo --task task-id --prompt-file /tmp/task.prompt.md [--fresh] [--no-auto] [--pure] [--model provider/model] [--variant name] [--attach url] [--port number] [--title text] [--file path] [--isolated-state] [--dry-run]
 
 Non-interactive launcher for AI coding tools. Stores session state under /tmp/omx-omo-agent-sessions.
 EOF
@@ -15,6 +15,16 @@ repo=""
 task=""
 prompt_file=""
 fresh="0"
+auto_approve="1"
+pure="0"
+model=""
+variant=""
+attach=""
+port=""
+title=""
+isolated_state="0"
+dry_run="0"
+files=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,6 +33,16 @@ while [[ $# -gt 0 ]]; do
     --task) task="${2:-}"; shift 2 ;;
     --prompt-file) prompt_file="${2:-}"; shift 2 ;;
     --fresh) fresh="1"; shift ;;
+    --no-auto|--no-danger) auto_approve="0"; shift ;;
+    --pure) pure="1"; shift ;;
+    --model) model="${2:-}"; shift 2 ;;
+    --variant) variant="${2:-}"; shift 2 ;;
+    --attach) attach="${2:-}"; shift 2 ;;
+    --port) port="${2:-}"; shift 2 ;;
+    --title) title="${2:-}"; shift 2 ;;
+    --file) files+=("${2:-}"); shift 2 ;;
+    --isolated-state) isolated_state="1"; shift ;;
+    --dry-run) dry_run="1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -127,40 +147,116 @@ run_codex() {
 
 run_opencode() {
   command -v opencode >/dev/null
-  opencode run --help >/dev/null
+  run_help="$(opencode run --help 2>&1 || true)"
+  if [[ -z "$run_help" ]]; then
+    echo "Unable to read 'opencode run --help'" >&2
+    exit 2
+  fi
 
-  mkdir -p "/tmp/opencode-$slug-data" "/tmp/opencode-$slug-cache" "/tmp/opencode-$slug-state"
-  export XDG_DATA_HOME="/tmp/opencode-$slug-data"
-  export XDG_CACHE_HOME="/tmp/opencode-$slug-cache"
-  export XDG_STATE_HOME="/tmp/opencode-$slug-state"
+  run_help_has() {
+    grep -q -- "$1" <<<"$run_help"
+  }
+
+  require_run_flag() {
+    local flag="$1"
+    local value="$2"
+    if [[ -n "$value" ]] && ! run_help_has "$flag"; then
+      echo "Current opencode run does not support $flag. Check 'opencode run --help'." >&2
+      exit 2
+    fi
+  }
+
+  if [[ "$isolated_state" == "1" ]]; then
+    mkdir -p "$state_dir/xdg-data" "$state_dir/xdg-cache" "$state_dir/xdg-state" "$state_dir/xdg-config"
+    export XDG_DATA_HOME="$state_dir/xdg-data"
+    export XDG_CACHE_HOME="$state_dir/xdg-cache"
+    export XDG_STATE_HOME="$state_dir/xdg-state"
+    export XDG_CONFIG_HOME="$state_dir/xdg-config"
+    echo "Using isolated OpenCode XDG state under: $state_dir" >&2
+  fi
+
+  if [[ -z "$attach" && -n "${OPENCODE_HOST:-}" ]]; then
+    attach="$OPENCODE_HOST"
+  fi
+  if [[ -z "$port" && -n "${OPENCODE_PORT:-}" ]]; then
+    port="$OPENCODE_PORT"
+  fi
+
+  cmd=(opencode run)
+
+  if [[ "$auto_approve" == "1" ]]; then
+    if run_help_has "--auto"; then
+      cmd+=(--auto)
+    elif run_help_has "--dangerously-skip-permissions"; then
+      cmd+=(--dangerously-skip-permissions)
+    else
+      echo "Warning: current opencode run exposes no known auto-approval flag; proceeding without one." >&2
+    fi
+  fi
+
+  cmd+=(--dir "$repo")
+
+  require_run_flag "--format" "1"
+  cmd+=(--format json)
+
+  if run_help_has "--print-logs"; then
+    cmd+=(--print-logs --log-level INFO)
+  fi
+
+  if [[ "$pure" == "1" ]]; then
+    require_run_flag "--pure" "1"
+    cmd+=(--pure)
+  fi
+  if [[ -n "$model" ]]; then
+    require_run_flag "--model" "$model"
+    cmd+=(--model "$model")
+  fi
+  if [[ -n "$variant" ]]; then
+    require_run_flag "--variant" "$variant"
+    cmd+=(--variant "$variant")
+  fi
+  if [[ -n "$attach" ]]; then
+    require_run_flag "--attach" "$attach"
+    cmd+=(--attach "$attach")
+  fi
+  if [[ -n "$port" ]]; then
+    require_run_flag "--port" "$port"
+    cmd+=(--port "$port")
+  fi
+  if [[ -n "$title" ]]; then
+    require_run_flag "--title" "$title"
+    cmd+=(--title "$title")
+  elif run_help_has "--title"; then
+    cmd+=(--title "$task")
+  fi
+  for file in "${files[@]+"${files[@]}"}"; do
+    require_run_flag "--file" "$file"
+    if [[ ! -e "$file" ]]; then
+      echo "Attached file does not exist: $file" >&2
+      exit 2
+    fi
+    cmd+=(--file "$file")
+  done
+
+  prompt="Read the complete task prompt from this local file, then follow it exactly: $prompt_file"
 
   if [[ "$fresh" != "1" && -s "$session_file" ]]; then
-    opencode run \
-      --dir "$repo" \
-      --format json \
-      --print-logs \
-      --log-level INFO \
-      --dangerously-skip-permissions \
-      --session "$(cat "$session_file")" \
-      "$(cat "$prompt_file")" | tee "$log_file"
+    require_run_flag "--session" "1"
+    cmd+=(--session "$(cat "$session_file")")
   elif [[ "$fresh" != "1" && -f "$continue_file" ]]; then
-    opencode run \
-      --dir "$repo" \
-      --format json \
-      --print-logs \
-      --log-level INFO \
-      --dangerously-skip-permissions \
-      --continue \
-      "$(cat "$prompt_file")" | tee "$log_file"
-  else
-    opencode run \
-      --dir "$repo" \
-      --format json \
-      --print-logs \
-      --log-level INFO \
-      --dangerously-skip-permissions \
-      "$(cat "$prompt_file")" | tee "$log_file"
+    require_run_flag "--continue" "1"
+    cmd+=(--continue)
   fi
+
+  if [[ "$dry_run" == "1" ]]; then
+    printf 'command:'
+    printf ' %q' "${cmd[@]}"
+    printf ' %q\n' "$prompt"
+    printf 'message-prefix: %s\n' "${prompt:0:80}"
+    exit 0
+  fi
+
+  "${cmd[@]}" "$prompt" | tee "$log_file"
 
   new_session="$(extract_session_id "$log_file" | tail -1 || true)"
   if [[ -n "${new_session:-}" ]]; then

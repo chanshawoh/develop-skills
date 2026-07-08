@@ -15,16 +15,18 @@ This skill is the OpenCode/OMO-focused sibling of `omx-omo-agent`. Keep the same
 The stable core launch path is the `omx-omo-agent` OpenCode direct-run pattern, but pass prompt files by path instead of shell-inlining them:
 
 ```bash
-opencode run --dangerously-skip-permissions --dir <repo> \
+opencode run --auto --dir <repo> --title <task-id> \
   "Read the complete task prompt from this local file, then follow it exactly: <prompt-file>"
 ```
 
 For OMO slash commands, put the slash command at the very beginning of the message:
 
 ```bash
-opencode run --dangerously-skip-permissions --dir <repo> \
+opencode run --auto --dir <repo> --title <task-id> \
   "/ulw-loop Read the complete task prompt from this local file, then follow it exactly: <prompt-file>"
 ```
+
+The bundled launcher probes `opencode run --help` and prefers the current `--auto` flag. It falls back to `--dangerously-skip-permissions` only when an older OpenCode build advertises that flag. Do not hard-code either flag in recovery edits without checking local help first.
 
 Do not treat `omo ulw-loop` as the primary path. OMO Ultimate slash commands such as `/ulw-loop` are triggered by message text inside OpenCode.
 
@@ -82,7 +84,7 @@ Before changing launch flags or recovering from a failing run, check:
 opencode run --help
 ```
 
-Read `references/omo-openagent.md` before changing OMO slash-command behavior. Read `references/opencode.md` for raw OpenCode run behavior. Read `references/opencode-server-supervision.md` only when direct `opencode run` cannot make progress and server supervision is needed.
+Read `references/omo-openagent.md` before changing OMO slash-command behavior. Read `references/opencode.md` for raw OpenCode run behavior and the current CLI flag matrix. Read `references/opencode-server-supervision.md` only when direct `opencode run` cannot make progress and server supervision is needed.
 
 ## Default Workflow
 
@@ -128,29 +130,41 @@ The command above is equivalent to:
 
 ```bash
 opencode run \
-  --dangerously-skip-permissions \
+  --auto \
   --dir /path/to/repo \
+  --title task-id \
   "/ulw-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<project-name>/<task-id>/opencode.prompt.md"
 ```
+
+The launcher actually detects the installed CLI before building the command. On current OpenCode it uses `--auto`; on older installations it can fall back to `--dangerously-skip-permissions` when that flag is present in `opencode run --help`.
 
 Default launcher behavior is intentionally minimal:
 
 - It does not default to `--agent`; OMO slash-command routing should choose the worker unless a known OpenCode-visible agent is required.
 - It does not default to JSON/log flags; add `--json --print-logs` only when machine-readable logs are needed.
 - It does not default to session resume/continue; reuse can cause stale loops or apparent no-progress runs.
-- It does not redirect OpenCode home state by default; use the `omx-omo-agent` recovery references only if OpenCode has a real home-state write failure.
+- It does not redirect OpenCode home state by default; use `--isolated-state` only as a recovery path because it also isolates normal OpenCode config/auth files.
 - It does not inline prompt-file contents by default; it passes the prompt file path to OpenCode. Use `--inline-prompt` only for tiny prompts when path reading is not possible.
 - It injects a worker guard by default so the OMO/OpenCode worker implements in the current session instead of calling this launcher, starting another `opencode run`, or recursively launching `/ralph-loop`, `/ulw-loop`, `/start-work`, or another OMO command.
+- It sets a stable OpenCode session title from `--task` when the installed CLI supports `--title`.
+- It can attach to an already running OpenCode backend with `--attach <url>`, or by inheriting `OPENCODE_HOST`. This follows the OpenChamber-style stable-server path and can avoid repeated MCP/server cold starts.
 
 Options:
 
 - `--slash-command <name>`: prefix `/<name> ` at the very beginning of the final message, for example `ulw-loop`.
 - `--allow-nested-launch`: opt out of the worker guard only when the task is explicitly to test or orchestrate nested OMO/OpenCode launches.
-- `--no-danger`: omit `--dangerously-skip-permissions`.
+- `--no-auto`: omit OpenCode permission auto-approval. `--no-danger` remains accepted as a backward-compatible alias.
 - `--json`: add `--format json`.
 - `--print-logs`: add `--print-logs --log-level INFO`.
+- `--pure`: add `--pure` to run without external OpenCode plugins when isolating plugin/skill conflicts.
 - `--agent <name>`: pass an OpenCode-visible agent id/name from `opencode agent list`.
 - `--model <provider/model>`: pass an OpenCode-visible model from `opencode models`.
+- `--variant <name>`: pass provider-specific reasoning/model variant such as `high`, `max`, or `minimal` when supported.
+- `--attach <url>`: add `--attach <url>` for a long-lived `opencode serve` backend. If omitted, `OPENCODE_HOST` is used when present.
+- `--port <number>`: add `--port <number>` for the local server. If omitted, `OPENCODE_PORT` is used when present.
+- `--title <text>`: override the default session title derived from `--task`.
+- `--file <path>`: attach an additional file to the OpenCode message. May be repeated.
+- `--isolated-state`: set `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME`, and `XDG_CONFIG_HOME` under the task log directory before launch.
 - `--dry-run`: print the command and message prefix without starting OpenCode.
 - `--inline-prompt`: inline the prompt file content into the OpenCode message. Avoid this for normal use.
 
@@ -172,7 +186,7 @@ Inspect the repo before editing. Keep changes surgical and consistent with exist
 Do not touch unrelated files. Do not commit, push, deploy, or expose secrets unless explicitly instructed.
 Do not invoke `opencode-omo-agent-run.sh`, run `opencode run`, or start another OMO slash loop from inside the worker session unless the task explicitly says to test nested launcher behavior.
 Run the required checks, or explain why they cannot run and use the next-best verification.
-Write the implementation report with: summary, files changed, commands run and results, deviations, risks, blockers, and next recommended action.
+Write the implementation report with: summary, files changed, commands run and results, extra commands not listed in Required checks, deviations, risks, blockers, and next recommended action.
 ```
 
 When using `/ulw-loop`, the final OpenCode message must start with `/ulw-loop`. Prefer a prompt-file reference:
@@ -216,7 +230,10 @@ If there is no useful output, no diff, and no report after a bounded wait, do on
 - `permission denied` on the launcher -> run `chmod +x <launcher>` automatically and retry once
 - worker repeatedly starts this launcher or another `opencode run` -> kill the nested processes, retry once with the same prompt through direct `opencode run` or the launcher guard, and explicitly instruct the worker to implement directly without starting another slash-loop
 - prompt inline failure -> pass the prompt file path in the OpenCode message
-- permissions prompt -> use `--dangerously-skip-permissions`
+- permissions prompt -> use launcher default auto-approval; if editing raw commands, prefer `--auto` when present in `opencode run --help`, otherwise use the advertised legacy approval flag
+- repeated cold-start or MCP startup cost -> start or reuse `opencode serve` and retry with `--attach <url>` or `OPENCODE_HOST=<url>`
+- plugin/duplicate-skill noise affects routing -> retry once with `--pure`; if OMO slash commands are needed, do not use `--pure` unless you confirm OMO remains available
+- OpenCode state/cache write failure -> retry once with `--isolated-state`, knowing this may hide normal OpenCode config/auth
 - stale/no-progress session -> start a fresh `opencode run` without `--continue` or `--session`
 - direct OpenCode cannot progress -> read `references/opencode-server-supervision.md`
 

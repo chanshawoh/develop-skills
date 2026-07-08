@@ -7,13 +7,14 @@ Use when launching OpenCode/OMO for this user's implementation work.
 Run from the target repo/worktree explicitly:
 
 ```bash
-cd /path/to/worktree && opencode run "/ralph-loop <work prompt>"
+opencode run --auto --dir /path/to/worktree "/ralph-loop <work prompt>"
 ```
 
 For long prompts, keep the first token `/ralph-loop` in the prompt file and run:
 
 ```bash
-cd /path/to/worktree && opencode run "$(cat /tmp/<task>-ralph-loop-prompt.txt)"
+opencode run --auto --dir /path/to/worktree \
+  "/ralph-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-ralph-loop-prompt.txt"
 ```
 
 Use `/ralph-loop` as the first token in the prompt. Do not default to `ultrawork` unless the user asks for it.
@@ -41,9 +42,10 @@ Use a progress gate instead of waiting indefinitely: record the baseline diff/re
 Preferred retry order for message-channel assistants:
 
 1. Retry with `--print-logs --log-level INFO`.
-2. Retry with task-local `XDG_DATA_HOME`, `XDG_CACHE_HOME`, and `XDG_STATE_HOME` under `/tmp`.
-3. Use `opencode serve` and the HTTP API; see `opencode-server-supervision.md`.
-4. Use the Codex-launches-OpenCode workaround; see `codex-invokes-opencode.md`.
+2. Retry with task-local `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME`, and `XDG_CONFIG_HOME` under `/tmp`.
+3. Retry with `--pure` only for plugin conflict diagnosis; if OMO slash commands disappear, stop using `--pure` for this path.
+4. Use `opencode serve` plus `opencode run --attach <url>` or the HTTP API; see `opencode-server-supervision.md`.
+5. Use the Codex-launches-OpenCode workaround; see `codex-invokes-opencode.md`.
 
 Do not use a TUI retry unless the user explicitly asks for an interactive terminal session.
 

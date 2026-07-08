@@ -24,17 +24,20 @@ Treat as no progress when all are true after a reasonable wait:
 1. Direct one-shot from worktree:
 
 ```bash
-cd /path/to/worktree && opencode run "$(cat /tmp/<task>-omo-prompt.txt)"
+opencode run --auto --dir /path/to/worktree \
+  "Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-omo-prompt.txt"
 ```
 
 2. Retry with task-local OpenCode state:
 
 ```bash
-mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state
+mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state /tmp/opencode-<task>-config
 XDG_DATA_HOME=/tmp/opencode-<task>-data \
 XDG_CACHE_HOME=/tmp/opencode-<task>-cache \
 XDG_STATE_HOME=/tmp/opencode-<task>-state \
-opencode run --dir /path/to/worktree --print-logs --log-level INFO --dangerously-skip-permissions "$(cat /tmp/<task>-omo-prompt.txt)"
+XDG_CONFIG_HOME=/tmp/opencode-<task>-config \
+opencode run --auto --dir /path/to/worktree --print-logs --log-level INFO \
+  "Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-omo-prompt.txt"
 ```
 
 3. OpenCode server/API supervision:
@@ -44,11 +47,13 @@ Start or attach to `opencode serve`, create a session via HTTP API, send `prompt
 4. Codex launcher workaround:
 
 ```bash
-mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state
+mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state /tmp/opencode-<task>-config
 XDG_DATA_HOME=/tmp/opencode-<task>-data \
 XDG_CACHE_HOME=/tmp/opencode-<task>-cache \
 XDG_STATE_HOME=/tmp/opencode-<task>-state \
-opencode run --print-logs --log-level INFO "$(cat /tmp/<task>-omo-prompt.txt)"
+XDG_CONFIG_HOME=/tmp/opencode-<task>-config \
+opencode run --auto --print-logs --log-level INFO \
+  "Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-omo-prompt.txt"
 ```
 
 Do not retry through a TUI unless the user explicitly asks for an interactive terminal session.

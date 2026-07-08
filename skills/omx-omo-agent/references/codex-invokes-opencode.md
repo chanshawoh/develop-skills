@@ -25,14 +25,16 @@ Failed to run the query 'PRAGMA wal_checkpoint(PASSIVE)'
 Error: attempt to write a readonly database
 ```
 
-Do not conclude OpenCode is broken. Have Codex retry OpenCode with XDG state/data/cache redirected to writable `/tmp` paths:
+Do not conclude OpenCode is broken. Have Codex retry OpenCode with XDG state/data/cache/config redirected to writable `/tmp` paths, and pass the prompt file by path instead of shell-inlining it:
 
 ```bash
-mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state
+mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state /tmp/opencode-<task>-config
 XDG_DATA_HOME=/tmp/opencode-<task>-data \
 XDG_CACHE_HOME=/tmp/opencode-<task>-cache \
 XDG_STATE_HOME=/tmp/opencode-<task>-state \
-opencode run --print-logs --log-level INFO "$(cat /tmp/<task>-omo-fix-prompt.txt)"
+XDG_CONFIG_HOME=/tmp/opencode-<task>-config \
+opencode run --auto --print-logs --log-level INFO \
+  "/ralph-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-omo-fix-prompt.txt"
 ```
 
 This keeps source edits in the worktree while letting OpenCode write its own SQLite/session files.
@@ -52,5 +54,5 @@ If Codex/OpenCode is running but there is no new diff/report after a few minutes
 ## Pitfalls
 
 - MCP token refresh warnings from Codex can be noisy and non-fatal; look for actual agent continuation or final error.
-- `opencode run "$(cat prompt)"` can fail in nested sandboxes due to OpenCode DB writes, even when it works directly in Hermes.
+- `opencode run "$(cat prompt)"` can fail from malformed shell quoting or nested-sandbox OpenCode DB writes. Prefer passing the prompt file path in the OpenCode message.
 - Do not let Codex implement the code if the user's requested boundary is “Codex invokes OpenCode”; the implementation worker should still be OpenCode/OMO.

@@ -25,7 +25,7 @@ Important: upstream warns not to use `bunx omo` or `npx omo`, because npm may re
 Canonical OMO Ultimate run:
 
 ```bash
-opencode run --dangerously-skip-permissions --dir /repo \
+opencode run --auto --dir /repo \
   "/ulw-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>.prompt.md"
 ```
 
@@ -181,7 +181,7 @@ Confirmed from upstream source:
 Practical invocation:
 
 ```bash
-opencode run --dangerously-skip-permissions --dir /repo "/ulw-loop Ship the requested feature"
+opencode run --auto --dir /repo "/ulw-loop Ship the requested feature"
 ```
 
 Short prompts can be written directly after `/ulw-loop`. Longer prompts should be stored in a local prompt file and passed by path, not via `$(cat ...)`.

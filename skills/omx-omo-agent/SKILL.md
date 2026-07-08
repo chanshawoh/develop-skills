@@ -30,6 +30,7 @@ Enhancement over the old skill:
 - Use prompt files and stdin for large prompts.
 - Reuse the same coding-tool session across assistant turns where possible.
 - Recover from read-only sandbox, home-directory write denial, prompt quoting, and TUI/picker hangs before declaring a blocker.
+- For OpenCode, prefer current `opencode run --auto` with a prompt-file reference. The launcher probes `opencode run --help` and only falls back to legacy approval flags when the installed CLI advertises them.
 
 ## Mandatory Documentation Check
 
@@ -99,6 +100,14 @@ skills/omx-omo-agent/scripts/omx-omo-agent-run.sh \
   --prompt-file /tmp/<project-name>/<task-id>/worker.prompt.md
 ```
 
+Useful OpenCode options mirror `opencode-omo-agent`:
+
+- `--model <provider/model>`: use when `--pure` strips OMO/plugin defaults and OpenCode would otherwise pick an unavailable configured model.
+- `--pure`: run without external OpenCode plugins when isolating plugin/skill conflicts. Do not use this for OMO slash-command workflows unless you confirm OMO remains available.
+- `--attach <url>` or `OPENCODE_HOST=<url>`: attach to an existing `opencode serve` backend, following the OpenChamber-style stable-server path.
+- `--port <number>` or `OPENCODE_PORT=<number>`: select the local run server port when supported.
+- `--isolated-state`: redirect OpenCode XDG state/config/cache under the task session directory as a recovery path.
+
 The launcher stores session state under `/tmp/omx-omo-agent-sessions/<task-id>/`. Later assistant turns should reuse the same `task-id` to continue the same coding-tool session.
 
 ## Prompt Rules
@@ -146,8 +155,10 @@ Use the smallest tool-specific recovery that preserves the user's requested auto
 - Codex resume: `codex exec resume <session-id> - < /tmp/<project-name>/<task-id>/worker.prompt.md`; do not add flags unsupported by current `codex exec resume --help`.
 - OMX writing inside repo: `omx exec -s workspace-write --skip-git-repo-check -C <repo> < /tmp/<project-name>/<task-id>/omx.prompt.md`.
 - OMX writing outside repo, shared docs, cloud-synced folders, or external doc exports: `omx exec -s danger-full-access --skip-git-repo-check -C <repo> < /tmp/<project-name>/<task-id>/omx.prompt.md`.
-- OpenCode direct run: `opencode run --dangerously-skip-permissions --dir <repo> "$(cat /tmp/<project-name>/<task-id>/worker.prompt.md)"`.
-- OpenCode home-state failure: redirect `XDG_DATA_HOME`, `XDG_CACHE_HOME`, and `XDG_STATE_HOME` to task-local `/tmp` paths.
+- OpenCode direct run: `opencode run --auto --dir <repo> "Read the complete task prompt from this local file, then follow it exactly: /tmp/<project-name>/<task-id>/worker.prompt.md"` when current help advertises `--auto`; otherwise use only the legacy approval flag advertised by `opencode run --help`.
+- OpenCode repeated cold-start or MCP startup cost: start/reuse `opencode serve` and retry with `--attach <url>` or `OPENCODE_HOST=<url>`.
+- OpenCode plugin/duplicate-skill noise: retry once with `--pure`; if the run then loses OMO routing or picks a missing configured model, pass `--model <provider/model>` explicitly.
+- OpenCode home-state failure: retry once with `--isolated-state` or redirect `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME`, and `XDG_CONFIG_HOME` to task-local paths. This may hide normal OpenCode config/auth, so prefer it as recovery, not default.
 
 If a TUI, picker, or approval prompt appears, stop that launch shape and switch to a non-interactive command or server/API mode.
 
@@ -179,7 +190,9 @@ If there is no output, no diff, and no report after a bounded wait, change launc
 
 - inline prompt -> prompt file stdin
 - read-only/workspace sandbox -> danger/full permission
-- OpenCode default home state -> `/tmp` XDG state
+- OpenCode permissions prompt -> launcher default auto-approval; in raw commands prefer `--auto` when present in `opencode run --help`
+- OpenCode default home state -> task-local XDG state via `--isolated-state`
+- OpenCode duplicate-skill/plugin routing issue -> `--pure`, plus explicit `--model` if pure mode exposes a stale default model
 - direct OpenCode -> server/API or Codex-launches-OpenCode workaround
 
 After recovery attempts fail, write a concise blocker artifact with attempted commands, evidence, paths, and next viable tool.

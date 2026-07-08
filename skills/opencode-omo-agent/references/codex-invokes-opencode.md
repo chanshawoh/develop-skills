@@ -25,14 +25,15 @@ Failed to run the query 'PRAGMA wal_checkpoint(PASSIVE)'
 Error: attempt to write a readonly database
 ```
 
-Do not conclude OpenCode is broken. Have Codex retry OpenCode with XDG state/data/cache redirected to writable `/tmp` paths:
+Do not conclude OpenCode is broken. Have Codex retry OpenCode with XDG state/data/cache/config redirected to writable `/tmp` paths:
 
 ```bash
-mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state
+mkdir -p /tmp/opencode-<task>-data /tmp/opencode-<task>-cache /tmp/opencode-<task>-state /tmp/opencode-<task>-config
 XDG_DATA_HOME=/tmp/opencode-<task>-data \
 XDG_CACHE_HOME=/tmp/opencode-<task>-cache \
 XDG_STATE_HOME=/tmp/opencode-<task>-state \
-opencode run --print-logs --log-level INFO \
+XDG_CONFIG_HOME=/tmp/opencode-<task>-config \
+opencode run --auto --print-logs --log-level INFO \
   "/ralph-loop Read the complete task prompt from this local file, then follow it exactly: /tmp/<task>-omo-fix-prompt.txt"
 ```
 
