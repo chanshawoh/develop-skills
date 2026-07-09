@@ -62,6 +62,14 @@ git status --short
 git branch --show-current
 ```
 
+If these commands report `fatal: not a git repository`, classify the workdir as an aggregate/non-git workspace before launching:
+
+```bash
+find /path/to/repo -maxdepth 3 \( -name .git -type d -o -name .git -type f \) -print
+```
+
+Use `-maxdepth 3`; shallower probes miss common aggregate layouts. When sub-repos are found, point the implementation worker at the intended sub-repo or explicitly constrain the edit scope from the aggregate root.
+
 2. Create a durable task id and artifact paths. Prefer the user's requested documentation surface, then existing project habits, then `.omx/` or `/tmp/<project-name>/<task-id>/`.
 3. Ask OMX/Codex to analyze the user's requirement and write the durable spec. For tasks that require writing outside the repo, external docs, cloud-synced folders, Notion/Obsidian exports, or shared docs, use `danger-full-access`.
 4. The spec must include an `Implementation Handoff` with:
@@ -71,12 +79,14 @@ git branch --show-current
    - done-when criteria
    - required tests/checks
    - report path
+   - allowed write scope
    - complete prompt for the worker
-5. Launch the implementation worker with non-interactive, high-permission, prompt-file stdin where possible.
-6. Require the implementation worker to write only the implementation report containing files changed, tests run, deviations, blockers, and risks.
-7. Ask OMX/Codex to write the verification result after checking the implementation against the approved spec.
-8. If verification finds issues, route exact narrow fixes back to the implementation worker and repeat implementation -> report -> verification.
-9. Ask OMX/Codex to close out by updating task/spec/verification docs into a human-readable final state, preserving the implementation report as downstream evidence, then summarize only result, changed files, tests, and remaining risks.
+5. Run one launcher dry-run before the real implementation launch whenever time permits.
+6. Launch the implementation worker with non-interactive, high-permission, prompt-file stdin where possible.
+7. Require the implementation worker to write only the implementation report containing files changed, tests run, deviations, blockers, and risks.
+8. Ask OMX/Codex to write the verification result after checking the implementation against the approved spec.
+9. If verification finds issues, route exact narrow fixes back to the implementation worker and repeat implementation -> report -> verification.
+10. Ask OMX/Codex to close out by updating task/spec/verification docs into a human-readable final state, preserving the implementation report as downstream evidence, then summarize only result, changed files, tests, and remaining risks.
 
 ## Launcher
 
@@ -110,6 +120,18 @@ Useful OpenCode options mirror `opencode-omo-agent`:
 
 The launcher stores session state under `/tmp/omx-omo-agent-sessions/<task-id>/`. Later assistant turns should reuse the same `task-id` to continue the same coding-tool session.
 
+For a tiny OpenCode/OMO launcher validation, prefer the dedicated smoke mode in `opencode-omo-agent`:
+
+```bash
+skills/opencode-omo-agent/scripts/opencode-omo-agent-run.sh \
+  --repo /path/to/repo \
+  --task smoke-opencode-omo \
+  --smoke-test \
+  --dry-run
+```
+
+Then run the same command without `--dry-run`. Smoke mode writes only `/tmp/opencode-omo-agent-sessions/<task-id>/smoke-report.md`, handles aggregate/non-git workspace detection, and should leave the repo diff empty.
+
 ## Prompt Rules
 
 For large prompts, never inline the prompt in the shell command.
@@ -128,6 +150,7 @@ Implementation worker prompt:
 You are a coding worker. Repo: <repo>. Task: <task>.
 Spec path: <spec-path>.
 Report path: <implementation-report-path>.
+Allowed write scope: <implementation files plus report path; for smoke tests use only /tmp/opencode-omo-agent-sessions/<task-id>/smoke-report.md>.
 
 Read the spec before editing. Implement only the approved acceptance criteria.
 Use full local permissions. Do not wait for terminal approval prompts.
@@ -157,7 +180,7 @@ Use the smallest tool-specific recovery that preserves the user's requested auto
 - OMX writing outside repo, shared docs, cloud-synced folders, or external doc exports: `omx exec -s danger-full-access --skip-git-repo-check -C <repo> < /tmp/<project-name>/<task-id>/omx.prompt.md`.
 - OpenCode direct run: `opencode run --auto --dir <repo> "Read the complete task prompt from this local file, then follow it exactly: /tmp/<project-name>/<task-id>/worker.prompt.md"` when current help advertises `--auto`; otherwise use only the legacy approval flag advertised by `opencode run --help`.
 - OpenCode repeated cold-start or MCP startup cost: start/reuse `opencode serve` and retry with `--attach <url>` or `OPENCODE_HOST=<url>`.
-- OpenCode plugin/duplicate-skill noise: retry once with `--pure`; if the run then loses OMO routing or picks a missing configured model, pass `--model <provider/model>` explicitly.
+- OpenCode duplicate skill/plugin warnings only: treat as non-blocking when the worker still routes and completes. If warnings correlate with wrong routing or no progress, retry once with `--pure`; if the run then loses OMO routing or picks a missing configured model, pass `--model <provider/model>` explicitly.
 - OpenCode home-state failure: retry once with `--isolated-state` or redirect `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME`, and `XDG_CONFIG_HOME` to task-local paths. This may hide normal OpenCode config/auth, so prefer it as recovery, not default.
 
 If a TUI, picker, or approval prompt appears, stop that launch shape and switch to a non-interactive command or server/API mode.

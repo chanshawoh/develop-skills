@@ -86,6 +86,18 @@ opencode run --help
 
 Read `references/omo-openagent.md` before changing OMO slash-command behavior. Read `references/opencode.md` for raw OpenCode run behavior and the current CLI flag matrix. Read `references/opencode-server-supervision.md` only when direct `opencode run` cannot make progress and server supervision is needed.
 
+### Aggregate Or Non-Git Workspace Gate
+
+`git status --short` and `git branch --show-current` are routing-state checks, not hard requirements. If the repo/workdir is a project aggregate directory rather than a Git root, classify it before launching instead of treating the first `fatal: not a git repository` as a blocker:
+
+```bash
+git status --short || true
+git branch --show-current || true
+find /path/to/repo -maxdepth 3 \( -name .git -type d -o -name .git -type f \) -print
+```
+
+Use `-maxdepth 3` as the default aggregate-workspace probe; `-maxdepth 2` misses common layouts such as `<workspace>/<domain>/<repo>/.git`. When sub-repos are found, set the worker prompt's edit scope and report path to the intended sub-repo or explicitly say the root is an aggregate/non-git workspace.
+
 ## Default Workflow
 
 1. Capture the user's goal, repo/workdir, edit scope, avoid list, done-when criteria, required checks, and implementation report path.
@@ -96,14 +108,16 @@ git status --short
 git branch --show-current
 ```
 
-3. Write a durable prompt file under `.omx/`, project docs, or `/tmp/<project-name>/<task-id>/`.
-4. If the user requested `/init-deep`, `/ralph-loop`, `/ulw-loop`, `/cancel-ralph`, `/refactor`, `/start-work`, `/stop-continuation`, `/handoff`, or another OMO slash command, ensure it is the first text in the final OpenCode message.
-5. Ensure the bundled launcher is executable; if not, automatically run `chmod +x` and continue.
-6. Launch with the bundled script or the direct command.
-7. Monitor progress with diff/report checks; do not trust process liveness alone.
-8. Verify OMO's work independently by reading the diff and running the smallest checks that prove the done-when criteria.
-9. If verification finds issues, send exact narrow fixes back through the same OpenCode/OMO path.
-10. Final response: worker used, changed files, checks run, outcome, and residual risks.
+3. If the routing-state checks show a non-git root, run the aggregate workspace gate above and adjust the worker scope before launching.
+4. Write a durable prompt file under `.omx/`, project docs, or `/tmp/<project-name>/<task-id>/`.
+5. Run one launcher dry-run before the real launch whenever time permits; this catches bad `--dir`, `--title`, `--auto`, `--pure`, and prompt-file wiring without starting a worker.
+6. If the user requested `/init-deep`, `/ralph-loop`, `/ulw-loop`, `/cancel-ralph`, `/refactor`, `/start-work`, `/stop-continuation`, `/handoff`, or another OMO slash command, ensure it is the first text in the final OpenCode message.
+7. Ensure the bundled launcher is executable; if not, automatically run `chmod +x` and continue.
+8. Launch with the bundled script or the direct command.
+9. Monitor progress with diff/report checks; do not trust process liveness alone.
+10. Verify OMO's work independently by reading the diff and running the smallest checks that prove the done-when criteria.
+11. If verification finds issues, send exact narrow fixes back through the same OpenCode/OMO path.
+12. Final response: worker used, changed files, checks run, outcome, and residual risks.
 
 ## Launcher
 
@@ -138,6 +152,23 @@ opencode run \
 
 The launcher actually detects the installed CLI before building the command. On current OpenCode it uses `--auto`; on older installations it can fall back to `--dangerously-skip-permissions` when that flag is present in `opencode run --help`.
 
+Built-in smoke test:
+
+```bash
+skills/opencode-omo-agent/scripts/opencode-omo-agent-run.sh \
+  --repo /path/to/repo \
+  --task smoke-opencode-omo \
+  --smoke-test \
+  --dry-run
+
+skills/opencode-omo-agent/scripts/opencode-omo-agent-run.sh \
+  --repo /path/to/repo \
+  --task smoke-opencode-omo \
+  --smoke-test
+```
+
+Smoke mode generates a prompt under `/tmp/opencode-omo-agent-sessions/<task-id>/smoke.prompt.md` and allows the worker to write only `/tmp/opencode-omo-agent-sessions/<task-id>/smoke-report.md`. It runs the aggregate/non-git workspace gate, verifies launcher help, and should leave the repo diff empty. Add `--pure --model <provider/model>` only when testing duplicate-skill/plugin isolation and the default pure-mode model is unavailable.
+
 Default launcher behavior is intentionally minimal:
 
 - It does not default to `--agent`; OMO slash-command routing should choose the worker unless a known OpenCode-visible agent is required.
@@ -165,6 +196,7 @@ Options:
 - `--title <text>`: override the default session title derived from `--task`.
 - `--file <path>`: attach an additional file to the OpenCode message. May be repeated.
 - `--isolated-state`: set `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME`, and `XDG_CONFIG_HOME` under the task log directory before launch.
+- `--smoke-test`: generate a bounded prompt that only writes `/tmp/opencode-omo-agent-sessions/<task-id>/smoke-report.md`; use with `--dry-run` first, then run without `--dry-run`.
 - `--dry-run`: print the command and message prefix without starting OpenCode.
 - `--inline-prompt`: inline the prompt file content into the OpenCode message. Avoid this for normal use.
 
@@ -181,6 +213,7 @@ Avoid: <files/areas/actions forbidden>.
 Done when: <observable acceptance criteria>.
 Required checks: <commands or "choose targeted checks and explain">.
 Implementation report path: <absolute path>.
+Allowed write scope: <implementation files plus report path; for smoke tests use only /tmp/opencode-omo-agent-sessions/<task-id>/smoke-report.md>.
 
 Inspect the repo before editing. Keep changes surgical and consistent with existing patterns.
 Do not touch unrelated files. Do not commit, push, deploy, or expose secrets unless explicitly instructed.
@@ -232,7 +265,7 @@ If there is no useful output, no diff, and no report after a bounded wait, do on
 - prompt inline failure -> pass the prompt file path in the OpenCode message
 - permissions prompt -> use launcher default auto-approval; if editing raw commands, prefer `--auto` when present in `opencode run --help`, otherwise use the advertised legacy approval flag
 - repeated cold-start or MCP startup cost -> start or reuse `opencode serve` and retry with `--attach <url>` or `OPENCODE_HOST=<url>`
-- plugin/duplicate-skill noise affects routing -> retry once with `--pure`; if OMO slash commands are needed, do not use `--pure` unless you confirm OMO remains available
+- duplicate skill/plugin warnings only -> treat as non-blocking noise when the worker still routes and completes; if warnings correlate with wrong routing or no progress, retry once with `--pure` and an explicit `--model <provider/model>` if pure mode exposes a stale default model. If OMO slash commands are needed, do not use `--pure` unless you confirm OMO remains available
 - OpenCode state/cache write failure -> retry once with `--isolated-state`, knowing this may hide normal OpenCode config/auth
 - stale/no-progress session -> start a fresh `opencode run` without `--continue` or `--session`
 - direct OpenCode cannot progress -> read `references/opencode-server-supervision.md`
