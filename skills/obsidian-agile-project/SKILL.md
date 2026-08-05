@@ -1,11 +1,11 @@
 ---
 name: obsidian-agile-project
-description: Use when a development task involves maintaining requirements, tasks, interfaces/modules, releases, project progress, or lightweight agile project-management records in an Obsidian vault.
+description: Maintain requirements, tasks, interfaces/modules, releases, and project progress specifically inside a confirmed Obsidian vault. Use only when the user explicitly requests Obsidian/vault behavior or the requested target is inside a discoverable Obsidian vault (an ancestor contains `.obsidian/`). Do not use for ordinary repository documentation such as `docs/`, Markdown requirements, implementation plans, timelines, or project records outside a vault, even if Obsidian CLI is installed.
 ---
 
 # Obsidian Agile Project
 
-Use this skill when you detect that the user or repository uses Obsidian to maintain development documents, requirements, tasks, milestones, or progress tracking.
+Use this skill only when the requested documentation target is an Obsidian vault project. Obsidian availability is not Obsidian intent: an installed Obsidian app or CLI must never trigger this skill by itself.
 
 The goal is a minimal Obsidian-native project-management space: requirements are explicit, tasks are traceable to requirements, progress is visible through views, and the vault remains useful with Obsidian files alone.
 
@@ -41,15 +41,25 @@ Do not pile all information into one document. Keep each note small enough to be
 - Use `obsidian-markdown` when creating `.md` notes with properties, wikilinks, callouts, embeds, or tags.
 - Use `obsidian-bases` when creating `.base` views for requirement/task dashboards.
 
-If those skills are unavailable, still follow this structure using normal filesystem edits and valid Obsidian Markdown.
+If the target is already confirmed as a vault and those skills are unavailable, follow this structure using normal filesystem edits and valid Obsidian Markdown. This fallback does not authorize applying the skill to a non-vault directory.
 
-## Detection
+## Activation Gate
 
-Treat the task as an Obsidian agile-project task when any of these are true:
+Activate this skill only when at least one positive condition is true:
 
-- The user mentions Obsidian, vaults, notes, Bases, Dataview, Tasks, Kanban, Projects, wikilinks, or task progress in Obsidian.
-- The repository contains `.obsidian/`, `.base` files, Obsidian-style wikilinks, or project notes with YAML properties.
-- The user asks to create PRDs, tasks, sprint plans, delivery status, backlog, or development documentation and points at an Obsidian vault.
+- The user explicitly asks to use Obsidian, an Obsidian vault, or an Obsidian-specific feature such as Bases, Dataview, or vault wikilinks.
+- The requested target path is inside an existing vault, proven by finding `.obsidian/` in that path or one of its ancestors.
+- The user explicitly asks to create a new Obsidian vault or an Obsidian-native project space.
+
+Do not activate this skill solely because:
+
+- The request involves PRDs, requirements, tasks, sprint plans, delivery status, implementation plans, timelines, releases, or Markdown documentation.
+- The target directory is named `docs/`, `documentation/`, `notes/`, `需求/`, or another documentation-like name.
+- Obsidian or `obsidian` CLI is installed or callable.
+- Another unrelated part of the repository contains `.obsidian/`, `.base` files, wikilinks, or YAML properties.
+- Markdown files contain backlinks, frontmatter, checkboxes, or note-like content.
+
+Resolve the requested write target before invoking Obsidian tooling. Starting from that exact target, search its parent chain for `.obsidian/`; do not treat a repository-wide match elsewhere as proof. If the target is an ordinary project directory such as `<repo>/docs/` with no `.obsidian/` ancestor and the user did not explicitly request Obsidian, exit this skill and maintain the repository's existing Markdown documentation conventions instead. Do not announce an "Obsidian fallback," do not create the vault structure below, and do not invoke Obsidian CLI.
 
 Before editing, identify the vault root and project root. If it is unclear, infer them from the `obsidian://open` link, `.obsidian/`, `项目总览.md`, an optional `项目说明.md`, or the path the user supplied. Ask only if multiple plausible vault roots would change where files are written.
 
