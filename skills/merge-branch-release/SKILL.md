@@ -146,6 +146,84 @@ When the target branch is checked out in another worktree:
 - Commit and push source changes first, then run the target-branch update, merge, push, and verification commands from that target worktree path.
 - Switch the user's current shell back to the original `repo_root` after verification.
 
+## User Decision Gates
+
+Stop, explain the evidence and risk, recommend an option, and ask the user to
+decide before any of these actions:
+
+- Include, discard, stash, move, or overwrite unrelated uncommitted work.
+- Create a missing target branch unless the user explicitly requested creating it.
+- Pull, merge, rebase, reset, force push, or otherwise rewrite history after a
+  rejected source push or a non-fast-forward target update.
+- Resolve a semantic conflict by choosing one behavior over another, deleting
+  either side's code, changing a public API or data contract, or materially
+  rewriting code introduced by either branch.
+- Choose an entire file with `--ours` or `--theirs` when the file contains more
+  than mechanical generated output.
+- Continue after conflict-resolution tests fail, cannot run, or do not cover the
+  affected behavior.
+- Delete the original branch or any worktree.
+
+Do not ask the user to decide low-risk mechanical details when all intent is
+preserved, such as combining independent additions or resolving whitespace.
+Still report any modification to `theirs` as required below.
+
+For each decision gate, use a clear prompt containing: the blocked step, current
+state, evidence, options, impact of each option, recommended option with reason,
+and the exact decision needed. Do not continue the risky step until the user
+answers.
+
+## Conflict Resolution Protocol
+
+With the target branch checked out, use Git terms precisely:
+
+- `ours` is the checked-out target branch.
+- `theirs` is the source branch being merged.
+- Do not equate `theirs` with older, incorrect, or disposable code.
+
+When `git merge --no-ff <source_branch>` reports conflicts:
+
+1. Stop before editing. Do not abort the merge unless the user requests it.
+2. Capture the conflict state with `git status --short`,
+   `git diff --name-only --diff-filter=U`, `git diff --diff-filter=U`, and
+   `git ls-files -u`.
+3. Inspect each conflicted file's base, ours, and theirs stages with
+   `git show :1:<path>`, `git show :2:<path>`, and `git show :3:<path>` when
+   those stages exist. Account for add/add and modify/delete conflicts where a
+   stage may be absent.
+4. Determine intent and which logic supersedes the other. Compute the merge
+   base, inspect the commits and diffs on both branches since that base, trace
+   callers and dependencies when relevant, and inspect related tests and
+   documentation. Do not decide that code is newer or correct from timestamps,
+   commit order, branch names, or `ours`/`theirs` labels alone.
+5. Present a decision packet for every risky conflict:
+   - conflicted file and affected function, module, API, or behavior
+   - what changed on ours and why
+   - what changed on theirs and why
+   - evidence about which logic is newer or superseding
+   - viable resolution options, including preserving both when possible
+   - recommended option, risks, and verification plan
+   Ask the user to choose before editing.
+6. Resolve only the approved scope. Preserve non-conflicting changes from both
+   sides. Do not use whole-file `git checkout --ours` or `--theirs` merely for
+   convenience.
+7. Before staging each resolved file, inspect and record how the resolution
+   differs from both sides, including `git diff --ours -- <path>` and
+   `git diff --theirs -- <path>`. Treat any removal, replacement, or behavioral
+   alteration of code from stage 3 as a modification to `theirs`.
+8. Run `git diff --name-only --diff-filter=U` and require empty output, review
+   the complete resolved diff, then run focused tests for the affected behavior
+   plus the repository's relevant broader checks. If validation fails or is
+   unavailable, return to a User Decision Gate before committing or pushing.
+9. Commit and push the target only after the approved resolution is complete
+   and verified. Then finish the normal verification and switch-back workflow.
+
+If the resolution modifies `theirs`, make the change highly visible in the
+final response under a separate `## ⚠️ WARNING: THEIRS CODE CHANGED` heading. List
+the affected files and behavior, what was changed or removed, why the selected
+logic is newer or safer, the user's decision that authorized it, and the tests
+or checks performed. Never bury this notice in a general merge summary.
+
 ## Workflow
 
 1. Capture starting state:
@@ -194,7 +272,9 @@ When the target branch is checked out in another worktree:
    - If there are no relevant source changes to commit, record that no source commit was needed and still verify the source branch is pushed/up to date before switching.
    - If unrelated dirty files remain, do not use them as a reason to claim the
      merge is complete. Either use a separate clean target worktree for the
-     target steps, or stop and report the dirty paths and required confirmation.
+     target steps, or enter a User Decision Gate and report the dirty paths and
+     available choices. Do not stash, discard, include, or move them without the
+     user's decision.
    - Commit with a concise message via heredoc:
 
 ```bash
@@ -208,20 +288,26 @@ EOF
    - Push the source branch immediately after the commit succeeds.
    - If source has upstream: `git push`
    - If source has no upstream: `git push -u origin <source_branch>`
-   - If the source push fails or is rejected, stop and report; do not switch branches or merge into the target.
-   - Do not pull, rebase, force push, or otherwise rewrite source history to make the push work unless the user explicitly requests it.
+   - If the source push fails or is rejected, stop, report the divergence and
+     enter a User Decision Gate. Do not switch branches or merge into the target.
+   - Do not pull, merge, rebase, force push, or otherwise rewrite source history
+     to make the push work unless the user explicitly selects that option.
 
 5. Check whether the target branch exists.
    - Fetch branch refs first when network is needed: `git fetch origin`
    - If local target exists: `git checkout <target>`
    - Else if remote target exists: `git checkout -b <target> origin/<target>`
-   - Else create target from current branch state: `git checkout -b <target> <source_branch>`
+   - Else, if the user explicitly requested creating the target, create it from
+     the source state: `git checkout -b <target> <source_branch>`.
+   - Otherwise enter a User Decision Gate before creating the missing target.
    - If the target branch is checked out in another worktree, do not run `git checkout <target>` here; run target-branch steps inside that worktree path.
 
 6. Update the target branch if it tracks a remote.
    - If target steps run in another worktree path, first verify that path is on `<target>` and has no unrelated uncommitted changes.
    - If target has upstream: `git pull --ff-only`
-   - If pull cannot fast-forward, stop and report; do not rebase or reset unless explicitly requested.
+   - If pull cannot fast-forward, stop and present the local/remote divergence,
+     available options, and risks. Let the user decide; do not merge, rebase,
+     reset, or force push unless explicitly selected.
 
 7. Merge source into target.
    - If target was newly created from source, no merge is needed.
@@ -230,7 +316,9 @@ EOF
      target state. It is acceptable for Git to report "Already up to date" only
      after the source branch has been freshly checked, pushed or verified, and
      the target branch has been freshly updated.
-   - If conflicts occur, stop after reporting conflicted files unless the fix is obvious and requested.
+   - If conflicts occur, follow the Conflict Resolution Protocol. Resolve only
+     low-risk mechanical conflicts without a new decision; enter a User Decision
+     Gate for every semantic or destructive choice.
    - Do not replace this step with only `merge-base --is-ancestor` unless the
      Skip Audit passed completely and you are explicitly reporting a verified
      skip.
@@ -249,12 +337,19 @@ EOF
 ## Safety Constraints
 
 - Never use `git reset --hard`, `git checkout --`, force push, or rebase unless the user explicitly requests it.
+- Never use whole-file `git checkout --ours`, `git checkout --theirs`,
+  `git restore --ours`, or `git restore --theirs` for a semantic conflict unless
+  the user selected that exact resolution after reviewing its impact.
 - Never skip hooks with `--no-verify`.
 - Always push the source branch successfully before merging it into the target branch.
 - Do not push unrelated source-branch commits or unrelated files; only include changes that belong to the requested release work.
 - Do not remove, prune, or modify worktrees unless the user explicitly requests it.
 - Do not leave the user on the target branch after a merge unless the user explicitly requested not to switch back or requested deleting the original branch.
 - If uncommitted unrelated changes are present, ask before including them.
+- Never assume later commit time means newer business logic. Compare both sides
+  from the merge base and verify the affected behavior.
+- Never silently remove or rewrite code from `theirs`. Require a user decision
+  when the change is risky and always emit the prominent post-resolution notice.
 - Do not perform secret cleanup as part of merge/release. Never redact,
   placeholder, rotate, delete, or otherwise modify suspected secrets or
   credentials unless the user explicitly asks for that separate cleanup.
@@ -270,6 +365,11 @@ These phrases indicate the agent is about to violate the skill:
   push/upstream verification.
 - Dirty config, `.env`, credential, or key files exist, and the agent edits them
   to placeholders or refuses to merge solely because of their contents.
+- "Theirs has a later commit, so it must be the newer logic."
+- The agent resolves a semantic conflict or rewrites `theirs` before the user
+  answers the required decision prompt.
+- The agent modifies `theirs` but omits the prominent warning and validation
+  evidence from the final response.
 - The final answer omits source push, target update, target merge/push, and
   switch-back status.
 
@@ -288,5 +388,9 @@ that allowed it; otherwise report the command result.
 - target branch push result
 - final branch/worktree after switching back, or the explicit user exception that skipped switching back
 - any residual ahead/behind status or conflicts
+- conflict decisions made by the user and the verification performed
+- a separate `## ⚠️ WARNING: THEIRS CODE CHANGED` section whenever the resolution
+  modified code from `theirs`, including affected files/behavior, rationale,
+  authorization, and test results
 - dirty files not committed, if any, and whether they were unrelated to the
   requested release
