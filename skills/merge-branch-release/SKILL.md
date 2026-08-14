@@ -1,6 +1,6 @@
 ---
 name: merge-branch-release
-description: Use when the user wants to merge the current branch into another branch, repeat a previous merge after new local changes, publish code, push to a target branch, release to test/pre-release/prod, or says to merge and push.
+description: Use when the user wants to merge the current branch into another branch, repeat a previous merge after new local changes, publish code, push to a target branch, release to test/pre-release/prod, or says to merge and push, including workspaces that contain multiple Git repositories.
 ---
 
 # Merge Branch Release
@@ -31,6 +31,44 @@ verification, and switch-back steps from the current state.
 
 Never rely on conversational memory alone to decide that a merge is duplicate
 or complete. Git state is the source of truth.
+
+## Repository Scope Resolution
+
+Resolve the repository scope before resolving source or target branches. In a
+workspace containing multiple Git repositories, treat each Git root and index
+as independent even when repositories are nested under one parent directory.
+
+Use this evidence in order:
+
+1. An explicitly named repository, module, or path in the user's request.
+2. The repository containing the files, implementation, or task the user is
+   referring to in the current context.
+3. The repository containing the relevant dirty changes or source commits from
+   the current task.
+4. The current Git root only when the preceding context does not point to a
+   different repository.
+
+For every plausible repository, resolve its Git root independently and inspect
+its current branch, status, worktrees, remotes, and local/remote target refs.
+Use `git -C <repo> ...` when necessary; never run one repository's Git commands
+from another repository by accident.
+
+When the user only says "merge to test", "合并到 test", or names another release
+lane without naming a repository:
+
+- Use the repository implied by the active task and changed files only when the
+  context identifies it unambiguously and that repository contains the named
+  target as a local branch or remote-tracking branch.
+- If the context intentionally covers multiple repositories, build an explicit
+  repository list and verify the named target separately in every repository.
+- If multiple repositories remain plausible, report the candidates, relevant
+  context evidence, current/source branches, and whether each contains the
+  target, then ask the user to choose the repository scope.
+- If the context points to one repository but that repository lacks the target,
+  stop and report the missing branch. Do not switch to another repository merely
+  because that repository has a branch with the requested name.
+- Treat naming `test`, `pre`, `prod`, or another target as a merge destination,
+  not as permission to create that branch. Never auto-create a missing target.
 
 ## No SHA Shortcut
 
@@ -118,6 +156,8 @@ source even if the current checkout is different.
 
 - Capture `current_branch=$(git branch --show-current)` and resolve
   `source_branch` from the request before deciding what to commit or push.
+- Capture these values independently for each selected repository. Do not reuse
+  a source branch name or commit conclusion across repositories.
 - If `source_branch != current_branch`, do not stage or commit the current
   branch's dirty files as source work.
 - Inspect and push the named source branch from its existing worktree, or check
@@ -129,14 +169,20 @@ source even if the current checkout is different.
 
 ## Target Branch Resolution
 
-Before switching branches, detect worktree state and resolve the target branch
-in this order:
+After resolving the repository scope, detect worktree state and resolve the
+target branch inside that repository in this order:
 
 1. Explicit user target branch.
 2. Explicit release lane alias mapped to an existing branch, for example `main`, `master`, `develop`, `test`, `pre`, or `prod`.
 3. Remote default branch from `git symbolic-ref --short refs/remotes/origin/HEAD`, if the user asked for the trunk but did not name it.
 4. Local trunk fallback: `main`, then `master`, then `develop`.
 5. Other checked-out worktree branch, only when the user clearly requested that branch.
+
+Require the resolved target to exist as `refs/heads/<target>` or
+`refs/remotes/<remote>/<target>` after the appropriate ref check or fetch. A
+same-named branch in a sibling or parent repository does not satisfy this check.
+If the target is absent, stop at a User Decision Gate. Do not create it unless
+the user explicitly asks to create that missing branch after seeing the result.
 
 When the target branch is checked out in another worktree:
 
@@ -151,8 +197,10 @@ When the target branch is checked out in another worktree:
 Stop, explain the evidence and risk, recommend an option, and ask the user to
 decide before any of these actions:
 
+- Select a repository when multiple repositories remain plausible from context.
 - Include, discard, stash, move, or overwrite unrelated uncommitted work.
-- Create a missing target branch unless the user explicitly requested creating it.
+- Create a missing target branch. Naming a merge destination alone is not
+  permission to create it.
 - Pull, merge, rebase, reset, force push, or otherwise rewrite history after a
   rejected source push or a non-fast-forward target update.
 - Resolve a semantic conflict by choosing one behavior over another, deleting
@@ -226,6 +274,16 @@ or checks performed. Never bury this notice in a general merge summary.
 
 ## Workflow
 
+0. Resolve repository scope:
+   - Identify all Git roots plausibly involved in the current request.
+   - Map the current task, referenced files, relevant changes, and source commits
+     to their owning repositories.
+   - Check whether the requested target exists locally or remotely in each
+     plausible repository.
+   - Continue automatically only when context and branch evidence identify one
+     repository unambiguously, or when the user clearly requested a known set of
+     repositories. Otherwise enter a User Decision Gate.
+
 1. Capture starting state:
    - `current_branch=$(git branch --show-current)`
    - `source_branch=<current_branch or explicitly named source branch>`
@@ -235,9 +293,10 @@ or checks performed. Never bury this notice in a general merge summary.
    - `git status --short`
    - `git diff --staged; git diff`
    - `git log --oneline -10`
-   - Do this on every merge request, including repeated requests for the same
-     source and target branches. Do not reuse status, diff, log, or branch
-     conclusions from a previous merge attempt.
+   - Do this independently in every selected repository on every merge request,
+     including repeated requests for the same source and target branches. Do not
+     reuse status, diff, log, or branch conclusions from another repository or a
+     previous merge attempt.
    - If `git status --short` is non-empty, classify each dirty path before
      deciding anything: relevant releasable work, unrelated user work, or
      generated noise. Do not add a separate secret/credential blocker category,
@@ -252,7 +311,8 @@ or checks performed. Never bury this notice in a general merge summary.
 3. Determine the target branch from the user request.
    - If unclear, ask.
    - If the target branch is the same as `source_branch`, stop and clarify.
-   - If the user explicitly names a target branch, use that branch.
+   - If the user explicitly names a target branch, use that branch only inside
+     the resolved repository scope.
    - If the user says "main", "master", "trunk", "主干", "test", "pre", "prod", or another release lane, resolve it to the matching local or remote branch.
    - If the current checkout is a worktree and the user asks to merge to the trunk, merge into the trunk branch.
    - If the current checkout is a worktree and the user asks to merge to another branch that is checked out in a different worktree, merge into that requested branch.
@@ -297,9 +357,10 @@ EOF
    - Fetch branch refs first when network is needed: `git fetch origin`
    - If local target exists: `git checkout <target>`
    - Else if remote target exists: `git checkout -b <target> origin/<target>`
-   - Else, if the user explicitly requested creating the target, create it from
-     the source state: `git checkout -b <target> <source_branch>`.
-   - Otherwise enter a User Decision Gate before creating the missing target.
+   - Else stop and report that the target is missing. Never auto-create it.
+   - Only after the user explicitly decides to create the known-missing branch,
+     create it from the approved base, normally
+     `git checkout -b <target> <source_branch>`.
    - If the target branch is checked out in another worktree, do not run `git checkout <target>` here; run target-branch steps inside that worktree path.
 
 6. Update the target branch if it tracks a remote.
@@ -341,6 +402,8 @@ EOF
   `git restore --ours`, or `git restore --theirs` for a semantic conflict unless
   the user selected that exact resolution after reviewing its impact.
 - Never skip hooks with `--no-verify`.
+- Never infer one repository's branch existence from another repository. Never
+  auto-create a missing release branch such as `test`, `pre`, or `prod`.
 - Always push the source branch successfully before merging it into the target branch.
 - Do not push unrelated source-branch commits or unrelated files; only include changes that belong to the requested release work.
 - Do not remove, prune, or modify worktrees unless the user explicitly requests it.
@@ -366,6 +429,8 @@ These phrases indicate the agent is about to violate the skill:
 - Dirty config, `.env`, credential, or key files exist, and the agent edits them
   to placeholders or refuses to merge solely because of their contents.
 - "Theirs has a later commit, so it must be the newer logic."
+- "This sibling repository has `test`, so it must be the intended repository."
+- "The user said merge to `test`, so I can create `test` when it is missing."
 - The agent resolves a semantic conflict or rewrites `theirs` before the user
   answers the required decision prompt.
 - The agent modifies `theirs` but omits the prominent warning and validation
@@ -380,6 +445,8 @@ When any red flag appears, return to the Workflow or Skip Audit. Do not final.
 Use this structure. If a step was skipped, name the exact Skip Audit evidence
 that allowed it; otherwise report the command result.
 
+- resolved repository path for every repository in scope and the context
+  evidence used to select it
 - commit hash created on the source branch, if any
 - source branch push result
 - target branch updated
