@@ -79,7 +79,7 @@ It never replaces the workflow.
 Do not answer "already merged", "nothing to do", or "no need to merge" until
 you have either:
 
-- completed steps 1-9 below, where `git merge --no-ff <source_branch>` and
+- completed steps 1-10 below, where `git merge --no-ff <source_branch>` and
   `git push` may legitimately report "Already up to date" or "Everything
   up-to-date"; or
 - completed the Skip Audit below and every item passes with fresh command
@@ -192,6 +192,33 @@ When the target branch is checked out in another worktree:
 - Commit and push source changes first, then run the target-branch update, merge, push, and verification commands from that target worktree path.
 - Switch the user's current shell back to the original `repo_root` after verification.
 
+## Validation Policy
+
+Avoid duplicate time-consuming validation. Before running source tests, lint,
+builds, or type checks, reuse a successful current-task result for this repository
+and relevant work when it covers the latest edits, remains valid, and is reportable.
+
+Otherwise run the repository's appropriate source checks, except in Fast Merge
+Mode. Conversational context may prove test execution; use Git for branch,
+commit, diff, and push state. Record whether validation was run or reused.
+
+After merging and before target push, inspect the combined diff and diff stat.
+Run focused and relevant broader checks after any conflict or for large/high-
+impact changes such as cross-module, dependency/build, configuration, schema,
+migration, public API, or data-contract changes. Judge affected behavior and
+repository conventions, not file count alone. A small conflict-free merge may
+reuse qualifying evidence when the target adds no material interaction risk. Cheap Git checks
+always remain. If required validation fails or cannot run, stop before target push.
+
+### Fast Merge Mode
+
+Enable Fast Merge Mode only when the user explicitly asks for a fast merge or
+explicitly asks to skip tests or time-consuming validation. Do not infer it
+from general release urgency alone.
+
+In Fast Merge Mode, skip time-consuming validation even for a large change, but keep cheap Git
+checks. Report every conflict, follow the normal protocol and gates, and report each skip.
+
 ## User Decision Gates
 
 Stop, explain the evidence and risk, recommend an option, and ask the user to
@@ -208,8 +235,8 @@ decide before any of these actions:
   rewriting code introduced by either branch.
 - Choose an entire file with `--ours` or `--theirs` when the file contains more
   than mechanical generated output.
-- Continue after conflict-resolution tests fail, cannot run, or do not cover the
-  affected behavior.
+- Continue after required conflict validation fails or cannot cover the affected
+  behavior, except when Fast Merge Mode waived time-consuming validation.
 - Delete the original branch or any worktree.
 
 Do not ask the user to decide low-risk mechanical details when all intent is
@@ -259,10 +286,11 @@ When `git merge --no-ff <source_branch>` reports conflicts:
    differs from both sides, including `git diff --ours -- <path>` and
    `git diff --theirs -- <path>`. Treat any removal, replacement, or behavioral
    alteration of code from stage 3 as a modification to `theirs`.
-8. Run `git diff --name-only --diff-filter=U` and require empty output, review
-   the complete resolved diff, then run focused tests for the affected behavior
-   plus the repository's relevant broader checks. If validation fails or is
-   unavailable, return to a User Decision Gate before committing or pushing.
+8. Require empty `git diff --name-only --diff-filter=U` output and review the
+   resolved diff. Unless Fast Merge Mode applies, run focused and relevant
+   broader tests. If required validation fails or is unavailable, enter a User
+   Decision Gate. Fast Merge Mode skips those tests, not conflict reporting or
+   cheap Git/diff verification.
 9. Commit and push the target only after the approved resolution is complete
    and verified. Then finish the normal verification and switch-back workflow.
 
@@ -318,13 +346,15 @@ or checks performed. Never bury this notice in a general merge summary.
    - If the current checkout is a worktree and the user asks to merge to another branch that is checked out in a different worktree, merge into that requested branch.
    - Do not infer the target from worktree paths alone when the user named a branch; the named branch wins.
 
-4. Commit and push source branch code before switching.
+4. Validate, commit, and push source branch code before switching.
    - Review staged and unstaged changes in the source branch/worktree.
    - Stage only relevant files for the requested work.
    - Do not commit unrelated user changes without explicit confirmation.
    - Do not block or rewrite relevant release changes because they look like
      secrets, credentials, config, `.env`, or key material. If the user said to
      merge/release them, preserve their contents exactly.
+   - Apply the Validation Policy; reuse qualifying current-task validation
+     instead of rerunning it.
    - Create the source-branch commit before any target checkout or merge.
    - For a repeated merge request, check for new source changes again. If new
      relevant changes exist, commit them even if an earlier merge in the same
@@ -384,11 +414,15 @@ EOF
      Skip Audit passed completely and you are explicitly reporting a verified
      skip.
 
-8. Push target.
+8. Validate the merged target.
+   - Apply the Validation Policy to the combined target diff before pushing.
+   - If required validation fails or cannot run, enter a User Decision Gate.
+
+9. Push target.
    - Existing upstream: `git push`
    - No upstream or newly created branch: `git push -u origin <target>`
 
-9. Verify and switch back.
+10. Verify and switch back.
    - Run `git status -sb` and `git log --oneline -3`.
    - Unless the user explicitly requested not to switch back or explicitly requested deleting the original branch, return to the original branch/worktree. If this worktree was switched away from the user's starting branch, run `git checkout <current_branch>`.
    - If target steps ran in another worktree path, return to the original `repo_root` instead of switching that target worktree away from its branch.
@@ -451,6 +485,8 @@ that allowed it; otherwise report the command result.
 - source branch push result
 - target branch updated
 - target merge result, including "Already up to date" when that is what Git reported
+- source validation result, reused evidence, or Fast Merge Mode skip reason
+- post-merge risk assessment and target validation result or skip reason
 - whether a separate worktree path was used for the target branch
 - target branch push result
 - final branch/worktree after switching back, or the explicit user exception that skipped switching back
