@@ -26,6 +26,25 @@ Do not chain checkout, pull, merge, commit, or push together. Inspect each
 state-changing result; push must always be a separate command. Never skip hooks
 with `--no-verify`.
 
+## Validation Policy
+
+Avoid duplicate time-consuming checks. Reuse a successful current-task test,
+lint, build, or type-check result only when it covers this repository and latest
+edits, remains valid, and can be reported. Otherwise run appropriate checks.
+Conversational evidence may prove validation; use Git for branch, commit, diff,
+and push state. Record whether validation ran, was reused, or was skipped.
+
+After merge, always inspect the combined diff. Run focused and relevant broader
+checks after conflicts or high-impact cross-module, dependency/build, config,
+schema, migration, public API, or data-contract changes. A small conflict-free
+merge may reuse qualifying evidence when the target adds no material interaction
+risk. Judge behavior and repository conventions, not file count alone.
+
+Enable Fast Merge Mode only when the user explicitly asks for a fast merge or
+to skip tests/time-consuming validation. It may skip those checks even for a
+large change, but never skips conflict reporting, User Decision Gates, or cheap
+Git/diff checks. Report every skipped check and reason.
+
 ## User Decision Gates
 
 Stop before the risky action, show evidence, options and impact, recommend one,
@@ -39,7 +58,8 @@ and ask for the exact decision when any of these applies:
 - A conflict requires choosing business behavior, deleting either side's code,
   changing an API/data contract, or selecting a whole non-generated file with
   `--ours` or `--theirs`.
-- Conflict validation fails, cannot run, or does not cover affected behavior.
+- Required validation fails, cannot run, or does not cover affected behavior;
+  an explicit Fast Merge Mode waiver is a skip, not a failure.
 - The proposed target diff contains unexpected deletion, rename, unrelated
   scope, or high-impact schema, migration, dependency, configuration, auth,
   security, public API, or data-contract changes.
@@ -112,12 +132,12 @@ Parse `git worktree list --porcelain` before choosing `target_path`:
 - Stop if the selected target path contains unrelated uncommitted changes.
 - Never prune, remove, or repurpose a worktree without user approval.
 
-### 3. Commit and push source work
+### 3. Validate, commit, and push source work
 
 Review staged and unstaged source changes. Stage and commit only requested
-release work before any target checkout or merge. On repeated requests, check
-again for new changes; an earlier successful merge proves nothing about the
-current attempt.
+release work before any target checkout or merge. Apply the Validation Policy;
+reuse qualifying current-task evidence instead of rerunning it. On repeated
+requests, check again for new changes and validation coverage.
 
 If no source commit is needed, still verify the source branch is pushed and up
 to date. If unrelated dirty paths prevent safe switching, use an isolated target
@@ -166,17 +186,18 @@ Freshly re-assert the complete merge contract, then run this as its own command:
 git merge --no-ff <source_tip>
 ```
 
-If conflicts occur, follow the Conflict Resolution Protocol. Otherwise run
-relevant tests and continue to pre-push review.
+If conflicts occur, follow the Conflict Resolution Protocol. Otherwise continue
+to combined-diff validation and pre-push review.
 
-### 6. Pre-push review and target push
+### 6. Validate, review, and push target
 
-Before push, require:
+Apply the Validation Policy to the combined target diff. Before push, require:
 
 - No unmerged paths.
 - `target_before` and `source_tip` are ancestors of `HEAD`.
 - A new merge commit's first parent equals `target_before`.
-- Relevant tests passed, or unavailable/failed validation was approved.
+- Required checks passed or were validly reused; Fast Merge Mode skips are
+  explicit and reported.
 - `git diff --stat <target_before>..HEAD` and
   `git diff --name-status <target_before>..HEAD` contain only reviewed scope.
 
@@ -238,9 +259,9 @@ infer that `theirs` is older, wrong, or disposable.
 7. Before staging, compare each resolution with both sides using
    `git diff --ours -- <path>` and `git diff --theirs -- <path>`. Treat removal,
    replacement, or behavioral alteration of stage 3 as modifying `theirs`.
-8. Require zero unmerged paths, review the complete resolved diff, and run
-   focused plus relevant broader tests. Return to a User Decision Gate if
-   validation fails or is unavailable.
+8. Require zero unmerged paths and review the complete resolved diff. Apply the
+   Validation Policy; Fast Merge Mode skips time-consuming checks, not conflict
+   reporting or cheap Git/diff verification.
 9. Re-assert the merge contract, commit only after approval and validation,
    then repeat pre-push invariants and push as a separate command.
 
@@ -271,7 +292,8 @@ user explicitly selects that action after reviewing its scope and impact.
 ## Final Response
 
 Report repository/remote selection, merge contract SHAs, source commit/push,
-target update, merge or verified skip, reviewed diff, tests, target push and
-remote equality, execution path/isolation, final branch/worktree, residual
-status, user decisions, recovery actions, and unresolved risks. Include the
-prominent `THEIRS CODE CHANGED` section whenever applicable.
+source validation run/reuse/Fast Mode skip, target update, merge or verified
+skip, combined-diff risk review and target validation, target push and remote
+equality, execution path/isolation, final branch/worktree, residual status,
+user decisions, recovery actions, and unresolved risks. Include the prominent
+`THEIRS CODE CHANGED` section whenever applicable.
